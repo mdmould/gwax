@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "template-python"
+name = "gwax"
 version = "0.0.1"
 authors = [
   { name="Matthew Mould", email="mattdmould@gmail.com" },
 ]
-description = "Template for python packages"
+description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
@@ -19,5 +19,5 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mdmould/template-python"
+Homepage = "https://github.com/mdmould/gwax"
 
