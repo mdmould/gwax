@@ -1,1 +1,4 @@
-# template-python
+# gwax
+
+Gravitational-wave astronomy in JAX.
+
