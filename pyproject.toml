@@ -11,7 +11,12 @@ authors = [
 description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ['jax', 'flowjax', 'jax_tqdm']
+dependencies = [
+    'jax >= 0.4.30',
+    'flowjax >= 12.4.0',
+    'jax_tqdm',
+    'gwpopulaton >= 1.0.0',
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -20,4 +25,3 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/mdmould/gwax"
-
