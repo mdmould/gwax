@@ -14,7 +14,7 @@ requires-python = ">=3.10"
 dependencies = [
     'jax >= 0.4.30',
     'flowjax >= 12.4.0',
-    'jax_tqdm',
+    'jax_tqdm >= 0.2.1',
     'gwpopulaton >= 1.0.0',
 ]
 classifiers = [
