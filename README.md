@@ -7,6 +7,10 @@ Gravitational-wave astronomy in JAX.
 1. Install JAX following their [instructions](https://github.com/google/jax#installation) for your platform and hardware.
 2. `pip install gwax`.
 
+## Implementations
+
+- Flow-based variational inference for gravitational-wave population analysis.
+
 ## Usage
 
 See the [examples](https://github.com/mdmould/gwax/tree/main/examples).
