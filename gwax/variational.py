@@ -24,7 +24,7 @@ def get_log_likelihood(likelihood = None, taper = None):
         taper = lambda variance: 0.0
 
     def log_likelihood(parameters):
-        likelihood.update(parameters)
+        likelihood.parameters.update(parameters)
         log_lkl, var = likelihood.ln_likelihood_and_variance()
         return log_lkl + taper(var)
 
@@ -90,10 +90,10 @@ def trainer(
     @equinox.filter_jit
     def update(carry, step):
         key, params, state = carry
-        new_key, key = jax.random.split(key)
-        loss, grad = loss_and_grad(key, params, step)
+        key, _key = jax.random.split(key)
+        loss, grad = loss_and_grad(params, _key, step)
         updates, state = optimizer.update(grad, state, params)
-        new_params = equinox.apply_updates(params, updates)
+        params = equinox.apply_updates(params, updates)
         return (key, params, state), loss
 
     (key, params, state), losses = jax.lax.scan(
