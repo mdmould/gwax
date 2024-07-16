@@ -12,6 +12,9 @@ from flowjax.bijections import (
     Stack,
     Tanh,
 )
+from flowjax.distributions import StandardNormal, Transformed
+from flowjax.flows import block_neural_autoregressive_flow
+from flowjax.wrappers import non_trainable
 
 
 def Affine(loc = 0, scale = 1):
@@ -50,7 +53,7 @@ def _Bounder(bounds = None):
     else:
         loc = bounds[0]
         scale = bounds[1] - bounds[0]
-        return Chain([Logisitic(), Affine(loc, scale)])
+        return Chain([Logistic(), Affine(loc, scale)])
 
 
 def Bounder(bounds):
@@ -62,13 +65,21 @@ def bound_from_unbound(flow, bounds = None):
 
     if type(bounder) is Identity:
         return flow
-    
-    flow = Transformed(flow.base_dist, Chain([flow.bijection, bounder]))
-    flow = equinox.tree_at(
-        lambda tree: tree.base_dist, flow, replace_fn = non_trainable,
-    )
-    flow = equinox.tree_at(
-        lambda tree: tree.bijection[-1], flow, replace_fn = non_trainable,
-    )
+
+    base_dist = non_trainable(flow.base_dist)
+    bijection = Chain([flow.bijection, non_trainable(bounder)])
+    flow = Transformed(base_dist, bijection)
 
     return flow
+
+
+def default_flow(key, bounds):
+    flow = block_neural_autoregressive_flow(
+        key = key,
+        base_dist = StandardNormal(shape = (len(bounds),)),
+        invert = False,
+        nn_depth = 1,
+        nn_block_dim = 8,
+        flow_layers = 1,
+    )
+    return bound_from_unbound(flow, bounds)

@@ -4,11 +4,10 @@ import jax_tqdm
 import equinox
 import optax
 
-from flowjax.distributions import StandardNormal, Uniform
-from flowjax.flows import block_neural_autoregressive_flow
+from flowjax.distributions import Uniform
 from flowjax.wrappers import NonTrainable
 
-from .flows import bound_from_unbound
+from .flows import default_flow
 
 
 def get_prior(bounds):
@@ -30,26 +29,6 @@ def get_log_likelihood(likelihood = None, taper = None):
         return log_lkl + taper(var)
 
     return log_likelihood
-
-
-def default_flow(key, bounds):
-    flow = block_neural_autoregressive_flow(
-        key = key,
-        base_dist = StandardNormal(shape = (len(prior),)),
-        invert = False,
-        nn_depth = 1,
-        nn_block_dim = 8,
-        flow_layers = 1,
-    )
-    return bound_from_unbound(flow, bounds)
-
-
-def partition(model, filter_spec = equinox.is_inexact_array):
-    return equinox.partition(
-        pytree = model,
-        filter_spec = filter_spec,
-        is_leaf = lambda leaf: isinstance(leaf, NonTrainable),
-    )
 
 
 def reverse_loss(key, batch_size, flow, log_target, temper = 1.0):
@@ -85,7 +64,11 @@ def trainer(
         key, _key = jax.random.split(key)
         flow = default_flow(key, prior_bounds.values())
 
-    params, static = partition(flow)
+    params, static = equinox.partition(
+        pytree = flow,
+        filter_spec = equinox.is_inexact_array,
+        is_leaf = lambda leaf: isinstance(leaf, NonTrainable),
+    )
 
     if temper_schedule is None:
         temper_schedule = lambda step: 1.0
@@ -97,7 +80,7 @@ def trainer(
         return reverse_loss(key, batch_size, flow, log_target, temper)
 
     if optimizer is None:
-        optimizer = otpax.adam
+        optimizer = optax.adam
     if callable(optimizer):
         optimizer = optimizer(learning_rate)
 
