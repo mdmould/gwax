@@ -49,6 +49,7 @@ def trainer(
     taper = None,
     temper_schedule = None,
     print_rate = 1,
+    tqdm_kwargs = {},
 ):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
@@ -86,7 +87,7 @@ def trainer(
 
     state = optimizer.init(params)
 
-    @jax_tqdm.scan_tqdm(steps, print_rate = print_rate)
+    @jax_tqdm.scan_tqdm(steps, print_rate, **tqdm_kwargs)
     @equinox.filter_jit
     def update(carry, step):
         key, params, state = carry
