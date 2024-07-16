@@ -15,7 +15,7 @@ dependencies = [
     'jax >= 0.4.30',
     'flowjax >= 12.4.0',
     'jax_tqdm >= 0.2.1',
-    'gwpopulaton >= 1.0.0',
+    'gwpopulation >= 1.0.0',
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
