@@ -17,6 +17,7 @@ dependencies = [
     'equinox',
     'optax',
     'jax_tqdm >= 0.2.1',
+    'wcosmo == 0.2.0',
     'gwpopulation >= 1.0.0',
 ]
 classifiers = [
