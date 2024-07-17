@@ -103,3 +103,34 @@ def trainer(
     flow = equinox.combine(params, static)
 
     return flow, losses
+
+
+def importance(key, prior_bounds, likelihood, flow, batch_size):
+    names = tuple(prior_bounds.keys())
+    bounds = tuple(prior_bounds.values())
+    prior = get_prior(bounds)
+    log_likelihood = equinox.filter_jit(get_log_likelihood(likelihood))
+    
+    samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
+    log_priors = prior.log_prob(samples)
+    # log_lkls = jax.vmap(log_likelihood)(dict(zip(names, samples.T)))
+    log_lkls = jax.lax.map(log_likelihood, dict(zip(names, samples.T)))
+    log_weights = log_priors + log_lkls - log_flows
+
+    log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
+
+    log_sq_mean = 2 * log_evidence
+    log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(batch_size)
+    
+    var_evidence = (jnp.exp(log_mean_sq) - jnp.exp(log_sq_mean)) / batch_size
+    var_log_evidence = var_evidence / jnp.exp(2 * log_evidence)
+
+    log_neff = jnp.log(batch_size) + log_sq_mean - log_mean_sq
+    
+    return dict(
+        samples = samples,
+        weights = jnp.exp(log_weights),
+        log_evidence = log_evidence,
+        log_evidence_variance = var_log_evidence,
+        efficiency = jnp.exp(log_neff) / batch_size,
+    )
