@@ -31,6 +31,10 @@ def get_log_likelihood(likelihood = None, taper = None):
     return log_likelihood
 
 
+def likelihood_extras():
+    return
+
+
 def reverse_loss(key, batch_size, flow, log_target, temper = 1.0):
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_targets = log_target(samples) * temper
