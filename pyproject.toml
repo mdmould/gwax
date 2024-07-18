@@ -16,9 +16,8 @@ dependencies = [
     'flowjax >= 12.4.0',
     'equinox',
     'optax',
-    'jax_tqdm >= 0.2.1',
-    'wcosmo == 0.2.0',
-    'gwpopulation >= 1.0.0',
+    'jax_tqdm >= 0.2.2',
+    'gwpopulation >= 1.1.1',
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
