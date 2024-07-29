@@ -49,9 +49,9 @@ def likelihood_extras(likelihood, parameters):
     detection_efficiency, detection_variance = \
         likelihood.selection_function.detection_efficiency(parameters)
 
-    nobs = likelihood.n_posteriors
-    selection = - nobs * jnp.log(selection)
-    selection_variance = nobs ** 2 * selection_variance / selection ** 2
+    selection = - likelihood.n_posteriors * jnp.log(detection_efficiency)
+    selection_variance = \
+        likelihood.n_posteriors ** 2 * detection_variance / selection ** 2
 
     log_likelihood = jnp.sum(log_bayes_factors) + selection
     variance = jnp.sum(variances) + selection_variance
@@ -62,6 +62,7 @@ def likelihood_extras(likelihood, parameters):
         log_bayes_factors = log_bayes_factors,
         variances = variances,
         detection_efficiency = detection_efficiency,
+        detection_variance = detection_variance,
         selection = selection,
         selection_variance = selection_variance,
     )
@@ -153,9 +154,7 @@ def importance(key, prior_bounds, likelihood, flow, batch_size):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
-    log_likelihood = get_log_likelihood(likelihood, False)
-    log_likelihood = jax.jit(log_likelihood)
-    # log_likelihood = equinox.filter_jit(log_likelihood)
+    log_likelihood = equinox.filter_jit(get_log_likelihood(likelihood, False))
     
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_priors = prior.log_prob(samples)
