@@ -36,8 +36,35 @@ def get_log_likelihood(likelihood = None, return_variance = False):
     return log_likelihood
 
 
-def likelihood_extras():
-    return
+def likelihood_extras(likelihood, parameters):
+    likelihood.parameters.update(parameters)
+    likelihood.parameters, added_keys = likelihood.conversion_function(
+        likelihood.parameters,
+    )
+    likelihood.hyper_prior.parameters.update(parameters)
+
+    log_bayes_factors, variances = \
+        likelihood._compute_per_event_ln_bayes_factors()
+
+    detection_efficiency, detection_variance = \
+        likelihood.selection_function.detection_efficiency(parameters)
+
+    nobs = likelihood.n_posteriors
+    selection = - nobs * jnp.log(selection)
+    selection_variance = nobs ** 2 * selection_variance / selection ** 2
+
+    log_likelihood = jnp.sum(log_bayes_factors) + selection
+    variance = jnp.sum(variances) + selection_variance
+    
+    return dict(
+        log_likelihood = log_likelihood,
+        variance = variance,
+        log_bayes_factors = log_bayes_factors,
+        variances = variances,
+        detection_efficiency = detection_efficiency,
+        selection = selection,
+        selection_variance = selection_variance,
+    )
 
 
 def reverse_loss(key, batch_size, flow, log_target, temper = 1.0):
