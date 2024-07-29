@@ -16,17 +16,22 @@ def get_prior(bounds):
     return Uniform(minval = lo, maxval = hi)
 
 
-def get_log_likelihood(likelihood = None, taper = None):
+def get_log_likelihood(likelihood = None, return_variance = False):
     if likelihood is None:
+        if return_variance:
+            return lambda parameters: (0.0, 0.0)
         return lambda parameters: 0.0
 
-    if taper is None:
-        taper = lambda variance: 0.0
+    if return_variance:
+        def log_likelihood_and_variance(parameters):
+            likelihood.parameters.update(parameters)
+            return likelihood.ln_likelihood_and_variance()
+
+        return log_likelihood_and_variance
 
     def log_likelihood(parameters):
         likelihood.parameters.update(parameters)
-        log_lkl, var = likelihood.ln_likelihood_and_variance()
-        return log_lkl + taper(var)
+        return likelihood.log_likelihood_ratio()
 
     return log_likelihood
 
@@ -57,16 +62,21 @@ def trainer(
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
-    log_likelihood = get_log_likelihood(likelihood, taper)
+    log_likelihood_and_variance = get_log_likelihood(likelihood, True)
+
+    if taper is None:
+        taper = lambda variance: 0.0
 
     def log_target(samples):
         log_priors = prior.log_prob(samples)
-        log_lkls = jax.vmap(log_likelihood)(dict(zip(names, samples.T)))
-        return log_priors + log_lkls
+        parameters = dict(zip(names, samples.T))
+        log_lkls, variances = jax.vmap(log_likelihood_and_variance)(parameters)
+        # log_lkls, variances = jax.lax.map(log_likelihood_and_variance, parameters)
+        return log_priors + log_lkls + taper(variances)
 
     if flow is None:
         key, _key = jax.random.split(key)
-        flow = default_flow(key, prior_bounds.values())
+        flow = default_flow(_key, prior_bounds.values())
 
     params, static = equinox.partition(
         pytree = flow,
@@ -116,12 +126,15 @@ def importance(key, prior_bounds, likelihood, flow, batch_size):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
-    log_likelihood = equinox.filter_jit(get_log_likelihood(likelihood))
+    log_likelihood = get_log_likelihood(likelihood, False)
+    log_likelihood = jax.jit(log_likelihood)
+    # log_likelihood = equinox.filter_jit(log_likelihood)
     
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_priors = prior.log_prob(samples)
-    # log_lkls = jax.vmap(log_likelihood)(dict(zip(names, samples.T)))
-    log_lkls = jax.lax.map(log_likelihood, dict(zip(names, samples.T)))
+    parameters = dict(zip(names, samples.T))
+    # log_lkls = jax.vmap(log_likelihood)(parameters)
+    log_lkls = jax.lax.map(log_likelihood, parameters)
     log_weights = log_priors + log_lkls - log_flows
 
     log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
@@ -137,7 +150,8 @@ def importance(key, prior_bounds, likelihood, flow, batch_size):
     return dict(
         samples = samples,
         weights = jnp.exp(log_weights),
+        efficiency = jnp.exp(log_neff) / batch_size,
         log_evidence = log_evidence,
         log_evidence_variance = var_log_evidence,
-        efficiency = jnp.exp(log_neff) / batch_size,
+        log_likelihoods = log_lkls,
     )
