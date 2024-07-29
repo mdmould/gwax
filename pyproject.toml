@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = [ "setuptools >= 61.0" ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwax"
 version = "0.0.4"
 authors = [
-  { name="Matthew Mould", email="mattdmould@gmail.com" },
+  { name = "Matthew Mould", email = "mattdmould@gmail.com" },
 ]
 description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
@@ -17,7 +17,7 @@ dependencies = [
     'equinox',
     'optax',
     'jax_tqdm >= 0.2.2',
-    'gwpopulation >= 1.1.1',
+    'gwpopulation == 1.1.1',
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
