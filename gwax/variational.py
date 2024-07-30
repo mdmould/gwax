@@ -50,8 +50,11 @@ def likelihood_extras(likelihood, parameters):
         likelihood.selection_function.detection_efficiency(parameters)
 
     selection = - likelihood.n_posteriors * jnp.log(detection_efficiency)
-    selection_variance = \
-        likelihood.n_posteriors ** 2 * detection_variance / selection ** 2
+    selection_variance = (
+        likelihood.n_posteriors ** 2
+        * detection_variance
+        / detection_efficiency ** 2
+    )
 
     log_likelihood = jnp.sum(log_bayes_factors) + selection
     variance = jnp.sum(variances) + selection_variance
