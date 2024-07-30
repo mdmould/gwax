@@ -58,7 +58,7 @@ def likelihood_extras(likelihood, parameters):
 
     log_likelihood = jnp.sum(log_bayes_factors) + selection
     variance = jnp.sum(variances) + selection_variance
-    
+
     return dict(
         log_likelihood = log_likelihood,
         variance = variance,
