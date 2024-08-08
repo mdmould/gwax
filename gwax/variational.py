@@ -83,13 +83,14 @@ def trainer(
     likelihood = None,
     flow = None,
     batch_size = 1,
-    vmap = True,
     steps = 1_000,
     learning_rate = 1e-2,
     optimizer = None,
     taper = None,
     temper_schedule = None,
     tqdm_args = {},
+    vmap = True,
+    finite_loss = False,
 ):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
@@ -121,15 +122,6 @@ def trainer(
         is_leaf = lambda leaf: isinstance(leaf, NonTrainable),
     )
 
-    if temper_schedule is None:
-        temper_schedule = lambda step: 1.0
-
-    @equinox.filter_value_and_grad
-    def loss_and_grad(params, key, step):
-        flow = equinox.combine(params, static)
-        temper = temper_schedule(step)
-        return reverse_loss(key, batch_size, flow, log_target, temper)
-
     if optimizer is None:
         optimizer = optax.adam
     if callable(optimizer):
@@ -137,23 +129,67 @@ def trainer(
 
     state = optimizer.init(params)
 
+    if temper_schedule is None:
+        temper_schedule = lambda step: 1.0
+
     tqdm_defaults = dict(print_rate = 1, tqdm_type = 'auto')
     for arg in tqdm_args:
-        tqdm_defaults[arg] = tqdm_args[arg]    
+        tqdm_defaults[arg] = tqdm_args[arg]  
 
-    @jax_tqdm.scan_tqdm(steps, **tqdm_defaults)
+    @equinox.filter_jit
+    def loss_fun(params, key, step):
+        flow = equinox.combine(params, static)
+        temper = temper_schedule(step)
+        return reverse_loss(key, batch_size, flow, log_target, temper)
+
+    loss_and_grad = equinox.filter_value_and_grad(loss_fun)
+
+    if finite_loss:
+        def loop_loss(params, key, step):
+            def cond_fun(val):
+                key, loss, grad = val
+                return ~jnp.isfinite(loss)
+            def body_fun(val):
+                key, loss, grad = val
+                key, _key = jax.random.split(key)
+                loss, grad = loss_and_grad(params, _key, step)
+                return key, loss, grad
+            init_val = key, jnp.inf, params
+            return jax.lax.while_loop(cond_fun, body_fun, init_val)
+    else:
+        def loop_loss(params, key, step):
+            key, _key = jax.random.split(key)
+            return key, *loss_and_grad(params, _key, step)
+
+    @jax_tqdm.scan_tqdm(steps + 1, **tqdm_defaults)
     @equinox.filter_jit
     def update(carry, step):
-        key, params, state = carry
-        key, _key = jax.random.split(key)
-        loss, grad = loss_and_grad(params, _key, step)
-        updates, state = optimizer.update(grad, state, params)
-        params = equinox.apply_updates(params, updates)
+        key, params, state = carry  
+
+        # key, _key = jax.random.split(key)
+        # loss, grad = loss_and_grad(params, _key, step)
+        # updates, state = optimizer.update(grad, state, params)
+        # params = equinox.apply_updates(params, updates)
+        # return (key, params, state), loss
+
+        pred = step == steps
+        def true_fun(key, params, state):
+            return key, params, state, loss_fun(params, key, step)
+        def false_fun(key, params, state):
+            key, loss, grad = loop_loss(params, key, step)
+            updates, state = optimizer.update(grad, state, params)
+            params = equinox.apply_updates(params, updates)
+            return key, params, state, loss
+        key, params, state, loss = jax.lax.cond(
+            pred, true_fun, false_fun, key, params, state,
+        )
+
         return (key, params, state), loss
 
     (key, params, state), losses = jax.lax.scan(
-        update, (key, params, state), jnp.arange(steps),
+        update, (key, params, state), jnp.arange(steps + 1),
     )
+
     flow = equinox.combine(params, static)
 
     return flow, losses
