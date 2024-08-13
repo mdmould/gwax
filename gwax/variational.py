@@ -136,6 +136,7 @@ def trainer(
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]  
 
+    @equinox.filter_jit
     def loss_fun(params, key, step):
         flow = equinox.combine(params, static)
         temper = temper_schedule(step)
@@ -160,38 +161,37 @@ def trainer(
             key, _key = jax.random.split(key)
             return key, *loss_and_grad(params, _key, step)
 
-    @jax_tqdm.scan_tqdm(steps, **tqdm_defaults)
+    @jax_tqdm.scan_tqdm(steps + 1, **tqdm_defaults)
     @equinox.filter_jit
     def update(carry, step):
         key, params, state = carry  
 
         # key, _key = jax.random.split(key)
         # loss, grad = loss_and_grad(params, _key, step)
-        key, loss, grad = loop_loss(params, key, step)
-        updates, state = optimizer.update(grad, state, params)
-        params = equinox.apply_updates(params, updates)
-        return (key, params, state), loss
+        # updates, state = optimizer.update(grad, state, params)
+        # params = equinox.apply_updates(params, updates)
+        # return (key, params, state), loss
 
-        # pred = step == steps
-        # def true_fun(key, params, state):
-        #     return key, params, state, loss_fun(params, key, step)
-        # def false_fun(key, params, state):
-        #     key, loss, grad = loop_loss(params, key, step)
-        #     updates, state = optimizer.update(grad, state, params)
-        #     params = equinox.apply_updates(params, updates)
-        #     return key, params, state, loss
-        # key, params, state, loss = jax.lax.cond(
-        #     pred, true_fun, false_fun, key, params, state,
-        # )
+        pred = step == steps
+        def true_fun(key, params, state):
+            return key, params, state, loss_fun(params, key, step)
+        def false_fun(key, params, state):
+            key, loss, grad = loop_loss(params, key, step)
+            updates, state = optimizer.update(grad, state, params)
+            params = equinox.apply_updates(params, updates)
+            return key, params, state, loss
+        key, params, state, loss = jax.lax.cond(
+            pred, true_fun, false_fun, key, params, state,
+        )
 
         return (key, params, state), loss
 
     (key, params, state), losses = jax.lax.scan(
-        update, (key, params, state), jnp.arange(steps),
+        update, (key, params, state), jnp.arange(steps + 1),
     )
 
     # append the loss value of the final params
-    losses = jnp.append(losses, loss_fun(params, key, steps))
+    # losses = jnp.append(losses, loss_fun(params, key, steps))
 
     flow = equinox.combine(params, static)
 
