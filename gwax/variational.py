@@ -161,7 +161,7 @@ def trainer(
             key, _key = jax.random.split(key)
             return key, *loss_and_grad(params, _key, step)
 
-    @jax_tqdm.scan_tqdm(steps + 1, **tqdm_defaults)
+    @jax_tqdm.scan_tqdm(steps, **tqdm_defaults)
     @equinox.filter_jit
     def update(carry, step):
         key, params, state = carry  
