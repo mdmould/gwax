@@ -1,3 +1,5 @@
+import time
+
 import jax
 import jax.numpy as jnp
 import jax_tqdm
@@ -75,6 +77,7 @@ def trainer(
     key,
     prior_bounds,
     likelihood = None,
+    vmap = True,
     flow = None,
     batch_size = 1,
     steps = 1_000,
@@ -83,7 +86,6 @@ def trainer(
     taper = None,
     temper_schedule = None,
     tqdm_args = {},
-    vmap = True,
 ):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
@@ -125,7 +127,9 @@ def trainer(
     if temper_schedule is None:
         temper_schedule = lambda step: 1.0
 
-    tqdm_defaults = dict(print_rate = 1, tqdm_type = 'auto')
+    tqdm_defaults = dict(
+        print_rate = 1, tqdm_type = 'auto', desc = 'GWAX: Variational training',
+    )
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]  
 
@@ -159,9 +163,13 @@ def trainer(
 
         return (key, params, state), loss
 
+    print('GWAX: Getting ready...')
+    t0 = time.time()
     (key, params, state), losses = jax.lax.scan(
         update, (key, params, state), jnp.arange(steps + 1),
     )
+    print(f'GWAX: Total time = {time.time() - t0} s')
+
     flow = equinox.combine(params, static)
 
     return flow, losses
