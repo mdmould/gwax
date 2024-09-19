@@ -179,7 +179,14 @@ def trainer(
     return flow, losses
 
 
-def importance(key, prior_bounds, likelihood, flow, batch_size, vmap = False):
+def importance(
+    key,
+    prior_bounds,
+    likelihood = None,
+    vmap = False,
+    flow = None,
+    batch_size = 10_000,
+):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
@@ -192,6 +199,8 @@ def importance(key, prior_bounds, likelihood, flow, batch_size, vmap = False):
         log_likelihood = lambda parameters: jax.lax.map(
             _log_likelihood, parameters,
         )
+
+    flow = prior if flow is None else flow
     
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_priors = prior.log_prob(samples)
