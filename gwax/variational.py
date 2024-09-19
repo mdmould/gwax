@@ -1,3 +1,4 @@
+import sys
 import time
 
 import jax
@@ -128,7 +129,10 @@ def trainer(
         temper_schedule = lambda step: 1.0
 
     tqdm_defaults = dict(
-        print_rate = 1, tqdm_type = 'auto', desc = 'GWAX: Variational training',
+        print_rate = 1,
+        tqdm_type = 'auto',
+        desc = 'GWAX: Variational training',
+        file = sys.stdout
     )
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]  
