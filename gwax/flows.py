@@ -61,18 +61,16 @@ def Bounder(bounds):
 def bound_from_unbound(flow, bounds = None):
     bounder = Bounder(bounds)
 
-    if type(bounder) is Identity:
-        return flow
+    if all(type(b) is Identity for b in bounder.bijections):
+        bijection = flow.bijection
+    else:
+        bijection = Chain([flow.bijection, non_trainable(bounder)])
 
-    base_dist = non_trainable(flow.base_dist)
-    bijection = Chain([flow.bijection, non_trainable(bounder)])
-    flow = Transformed(base_dist, bijection)
-
-    return flow
+    return Transformed(non_trainable(flow.base_dist), bijection)
 
 
-def default_flow(key, bounds):
-    flow = block_neural_autoregressive_flow(
+def default_flow(key, bounds, **kwargs):
+    default_kwargs = dict(
         key = key,
         base_dist = StandardNormal(shape = (len(bounds),)),
         invert = False,
@@ -80,4 +78,10 @@ def default_flow(key, bounds):
         nn_block_dim = 8,
         flow_layers = 1,
     )
+    
+    for arg in kwargs:
+        default_kwargs[arg] = kwargs[arg]
+
+    flow = block_neural_autoregressive_flow(**default_kwargs)
+
     return bound_from_unbound(flow, bounds)
