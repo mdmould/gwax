@@ -137,6 +137,7 @@ def trainer(
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]  
 
+    @equinox.filter_jit
     def loss_fn(params, key, step):
         flow = equinox.combine(params, static)
         samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
@@ -148,23 +149,9 @@ def trainer(
     def update(carry, step):
         key, params, state = carry  
         key, _key = jax.random.split(key)
-
-        def _update(params, state):
-            loss, grad = equinox.filter_value_and_grad(loss_fn)(
-                params, key, step,
-            )
-            updates, state = optimizer.update(grad, state, params)
-            params = equinox.apply_updates(params, updates)
-            return params, state, loss
-            
-        params, state, loss = jax.lax.cond(
-            step == steps,
-            lambda params, state: (params, state, loss_fn(params, key, step)),
-            _update,
-            params,
-            state,
-        )
-
+        loss, grad = equinox.filter_value_and_grad(loss_fn)(params, key, step)
+        updates, state = optimizer.update(grad, state, params)
+        params = equinox.apply_updates(params, updates)
         return (key, params, state), loss
 
     print('GWAX: Getting ready...')
@@ -172,9 +159,9 @@ def trainer(
     (key, params, state), losses = jax.lax.scan(
         update, (key, params, state), jnp.arange(steps + 1),
     )
-    print(f'GWAX: Total time = {time.time() - t0} s')
-
+    losses.append(loss_fn(params, key, steps)) # loss after the final update
     flow = equinox.combine(params, static)
+    print(f'GWAX: Total time = {time.time() - t0} s')
 
     return flow, losses
 
