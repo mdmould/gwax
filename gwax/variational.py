@@ -132,7 +132,7 @@ def trainer(
         print_rate = 1,
         tqdm_type = 'auto',
         desc = 'GWAX: Variational training',
-        file = sys.stdout
+        # file = sys.stdout,
     )
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]  
@@ -159,8 +159,8 @@ def trainer(
     (key, params, state), losses = jax.lax.scan(
         update, (key, params, state), jnp.arange(steps + 1),
     )
-    losses.append(loss_fn(params, key, steps)) # loss after the final update
     flow = equinox.combine(params, static)
+    losses = jnp.append(losses, loss_fn(params, key, steps)) # final loss
     print(f'GWAX: Total time = {time.time() - t0} s')
 
     return flow, losses
