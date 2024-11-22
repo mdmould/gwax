@@ -88,6 +88,8 @@ def trainer(
     temper_schedule = None,
     tqdm_args = {},
 ):
+    print('GWAX: Getting ready...')
+
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
@@ -153,7 +155,7 @@ def trainer(
         params = equinox.apply_updates(params, updates)
         return (key, params, state), loss
 
-    print('GWAX: Getting ready...')
+    print('GWAX: JAX jitting...')
     t0 = time.time()
     (key, params, state), losses = jax.lax.scan(
         update, (key, params, state), jnp.arange(steps),
