@@ -196,7 +196,6 @@ def importance(
     log_lkls = log_likelihood(parameters)
 
     log_weights = log_priors + log_lkls - log_flows
-    weights = jnp.exp(log_weights)
 
     log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
 
@@ -211,7 +210,7 @@ def importance(
     
     return dict(
         samples = samples,
-        weights = weights,
+        log_weights =log_weights,
         efficiency = efficiency,
         log_evidence = log_evidence,
         log_evidence_sigma = log_evidence_sigma,
