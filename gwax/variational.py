@@ -210,7 +210,7 @@ def importance(
     
     return dict(
         samples = samples,
-        log_weights =log_weights,
+        log_weights = log_weights,
         efficiency = efficiency,
         log_evidence = log_evidence,
         log_evidence_sigma = log_evidence_sigma,
