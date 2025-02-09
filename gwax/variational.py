@@ -8,7 +8,7 @@ import equinox
 import optax
 
 from flowjax.distributions import Uniform
-from flowjax.wrappers import NonTrainable
+from paramax.wrappers import NonTrainable
 
 from .flows import default_flow
 

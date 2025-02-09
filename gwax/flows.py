@@ -12,7 +12,7 @@ from flowjax.bijections import (
 )
 from flowjax.distributions import StandardNormal, Transformed
 from flowjax.flows import block_neural_autoregressive_flow
-from flowjax.wrappers import non_trainable
+from paramax.wrappers import non_trainable
 
 
 def Affine(loc = 0, scale = 1):
