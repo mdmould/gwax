@@ -89,7 +89,7 @@ def trainer(
     temper_schedule = None,
     tqdm_args = {},
 ):
-    print('GWAX: Getting ready...')
+    print('GWAX - getting ready...')
 
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
@@ -134,8 +134,7 @@ def trainer(
     tqdm_defaults = dict(
         print_rate = 1,
         tqdm_type = 'auto',
-        desc = 'GWAX: Variational training',
-        # file = sys.stdout,
+        desc = 'GWAX - variational training',
     )
     for arg in tqdm_args:
         tqdm_defaults[arg] = tqdm_args[arg]
@@ -156,13 +155,12 @@ def trainer(
         params = equinox.apply_updates(params, updates)
         return (key, params, state), loss
 
-    print('GWAX: JAX jitting...')
+    print('GWAX - JAX jitting...')
     t0 = time.time()
     (key, params, state), losses = jax.lax.scan(
         update, (key, params, state), jnp.arange(steps),
     )
     flow = equinox.combine(params, static)
-    # losses = jnp.append(losses, loss_fn(params, key, steps)) # final loss
     print(f'GWAX: Total time = {time.time() - t0} s')
 
     return flow, losses
@@ -175,6 +173,7 @@ def importance(
     loop = 'scan', # 'vmap', 'map', 'scan', or 'for'
     flow = None,
     batch_size = 10_000,
+    tqdm_args = {},
 ):
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
@@ -191,8 +190,15 @@ def importance(
             _log_likelihood, parameters,
         )
     elif loop == 'scan':
+        tqdm_defaults = dict(
+            print_rate = 1,
+            tqdm_type = 'auto',
+            desc = 'GWAX - importance sampling',
+        )
+        for arg in tqdm_args:
+            tqdm_defaults[arg] = tqdm_args[arg]
         log_likelihood = lambda parameters: jax.lax.scan(
-            jax_tqdm.scan_tqdm(batch_size, tqdm_type = 'std')(
+            jax_tqdm.scan_tqdm(batch_size, **tqdm_defaults)(
                 lambda carry, ip: (None, _log_likelihood(ip[1])),
             ),
             None,
