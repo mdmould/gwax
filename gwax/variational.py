@@ -1,5 +1,6 @@
 import sys
 import time
+import tqdm
 
 import jax
 import jax.numpy as jnp
@@ -93,7 +94,7 @@ def trainer(
     names = tuple(prior_bounds.keys())
     bounds = tuple(prior_bounds.values())
     prior = get_prior(bounds)
-    
+
     _log_likelihood_and_variance = get_log_likelihood(likelihood, True)
     if vmap:
         log_likelihood_and_variance = jax.vmap(_log_likelihood_and_variance)
@@ -137,7 +138,7 @@ def trainer(
         # file = sys.stdout,
     )
     for arg in tqdm_args:
-        tqdm_defaults[arg] = tqdm_args[arg]  
+        tqdm_defaults[arg] = tqdm_args[arg]
 
     def loss_fn(params, key, step):
         flow = equinox.combine(params, static)
@@ -148,7 +149,7 @@ def trainer(
     @jax_tqdm.scan_tqdm(steps, **tqdm_defaults)
     @equinox.filter_jit
     def update(carry, step):
-        key, params, state = carry  
+        key, params, state = carry
         key, _key = jax.random.split(key)
         loss, grad = equinox.filter_value_and_grad(loss_fn)(params, key, step)
         updates, state = optimizer.update(grad, state, params)
@@ -171,7 +172,7 @@ def importance(
     key,
     prior_bounds,
     likelihood = None,
-    vmap = False,
+    loop = 'scan', # 'vmap', 'map', 'scan', or 'for'
     flow = None,
     batch_size = 10_000,
 ):
@@ -181,15 +182,30 @@ def importance(
 
     _log_likelihood = get_log_likelihood(likelihood, False)
     _log_likelihood = equinox.filter_jit(_log_likelihood)
-    if vmap:
+
+    loop = loop.lower()
+    if loop == 'vmap':
         log_likelihood = jax.vmap(_log_likelihood)
-    else:
+    elif loop == 'map':
         log_likelihood = lambda parameters: jax.lax.map(
             _log_likelihood, parameters,
         )
+    elif loop == 'scan':
+        log_likelihood = lambda parameters: jax.lax.scan(
+            jax_tqdm.scan_tqdm(batch_size, tqdm_type = 'std')(
+                lambda carry, ip: (None, _log_likelihood(ip[1])),
+            ),
+            None,
+            (jnp.arange(batch_size), parameters),
+        )[1]
+    else:
+        raise ValueError(
+            'loop must be \'vmap\', \'map\', or \'scan\' (default \'scan\') '
+            f'but got \'{loop}\'',
+        )
 
     flow = prior if flow is None else flow
-    
+
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_priors = prior.log_prob(samples)
     parameters = dict(zip(names, samples.T))
@@ -207,7 +223,7 @@ def importance(
 
     log_evidence_variance = 1 / ess - 1 / batch_size
     log_evidence_sigma = log_evidence_variance ** 0.5
-    
+
     return dict(
         samples = samples,
         log_weights = log_weights,
