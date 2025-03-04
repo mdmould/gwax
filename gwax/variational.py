@@ -228,14 +228,14 @@ def importance(
     log_weights = log_priors + log_lkls - log_flows
     log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
     eff = efficiency(log_weights)
-    ess = efficiency * batch_size
+    ess = eff * batch_size
     log_evidence_variance = 1 / ess - 1 / batch_size
     log_evidence_sigma = log_evidence_variance ** 0.5
 
     return dict(
         samples = samples,
         log_weights = log_weights,
-        efficiency = efficiency,
+        efficiency = eff,
         log_evidence = log_evidence,
         log_evidence_sigma = log_evidence_sigma,
     )
