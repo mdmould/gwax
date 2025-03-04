@@ -166,6 +166,14 @@ def trainer(
     return flow, losses
 
 
+def efficiency(log_weights):
+    batch_size = log_weights.size
+    log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
+    log_sq_mean = 2 * log_evidence
+    log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(batch_size)
+    return jnp.exp(log_sq_mean - log_mean_sq)
+
+
 def importance(
     key,
     prior_bounds,
@@ -218,15 +226,9 @@ def importance(
     log_lkls = log_likelihood(parameters)
 
     log_weights = log_priors + log_lkls - log_flows
-
     log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
-
-    log_sq_mean = 2 * log_evidence
-    log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(batch_size)
-
-    efficiency = jnp.exp(log_sq_mean - log_mean_sq)
+    eff = efficiency(log_weights)
     ess = efficiency * batch_size
-
     log_evidence_variance = 1 / ess - 1 / batch_size
     log_evidence_sigma = log_evidence_variance ** 0.5
 
