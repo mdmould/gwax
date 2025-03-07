@@ -166,12 +166,19 @@ def trainer(
     return flow, losses
 
 
-def efficiency(log_weights):
-    batch_size = log_weights.size
-    log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
+def _importance(log_weights, n):
+    log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(n)
     log_sq_mean = 2 * log_evidence
-    log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(batch_size)
-    return jnp.exp(log_sq_mean - log_mean_sq)
+    log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(n)
+    efficiency = jnp.exp(log_sq_mean - log_mean_sq)
+    ess = eff * n
+    log_evidence_variance = 1 / ess - 1 / n
+    log_evidence_sigma = log_evidence_variance ** 0.5
+    return dict(
+        efficiency = efficiency,
+        log_evidence = log_evidence,
+        log_evidence_sigma = log_evidence_sigma,
+    )
 
 
 def importance(
@@ -183,10 +190,6 @@ def importance(
     batch_size = 10_000,
     tqdm_args = {},
 ):
-    names = tuple(prior_bounds.keys())
-    bounds = tuple(prior_bounds.values())
-    prior = get_prior(bounds)
-
     _log_likelihood = get_log_likelihood(likelihood, False)
     _log_likelihood = equinox.filter_jit(_log_likelihood)
 
@@ -218,24 +221,19 @@ def importance(
             f'but got \'{loop}\'',
         )
 
+    names = tuple(prior_bounds.keys())
+    bounds = tuple(prior_bounds.values())
+    prior = get_prior(bounds)
     flow = prior if flow is None else flow
 
     samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
     log_priors = prior.log_prob(samples)
     parameters = dict(zip(names, samples.T))
     log_lkls = log_likelihood(parameters)
-
     log_weights = log_priors + log_lkls - log_flows
-    log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(batch_size)
-    eff = efficiency(log_weights)
-    ess = eff * batch_size
-    log_evidence_variance = 1 / ess - 1 / batch_size
-    log_evidence_sigma = log_evidence_variance ** 0.5
 
     return dict(
         samples = samples,
         log_weights = log_weights,
-        efficiency = eff,
-        log_evidence = log_evidence,
-        log_evidence_sigma = log_evidence_sigma,
+        **_importance(log_weights, batch_size),
     )
