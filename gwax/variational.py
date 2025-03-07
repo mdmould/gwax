@@ -166,7 +166,9 @@ def trainer(
     return flow, losses
 
 
-def _importance(log_weights, n):
+def _importance(log_weights, n = None):
+    if n is None:
+        n = log_weights.size
     log_evidence = jax.nn.logsumexp(log_weights) - jnp.log(n)
     log_sq_mean = 2 * log_evidence
     log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(n)
@@ -187,7 +189,7 @@ def importance(
     likelihood = None,
     loop = 'scan', # 'vmap', 'map', 'scan', or 'for'
     flow = None,
-    batch_size = 10_000,
+    n = 10_000,
     tqdm_args = {},
 ):
     _log_likelihood = get_log_likelihood(likelihood, False)
@@ -209,11 +211,11 @@ def importance(
         for arg in tqdm_args:
             tqdm_defaults[arg] = tqdm_args[arg]
         log_likelihood = lambda parameters: jax.lax.scan(
-            jax_tqdm.scan_tqdm(batch_size, **tqdm_defaults)(
+            jax_tqdm.scan_tqdm(n, **tqdm_defaults)(
                 lambda carry, ip: (None, _log_likelihood(ip[1])),
             ),
             None,
-            (jnp.arange(batch_size), parameters),
+            (jnp.arange(n), parameters),
         )[1]
     else:
         raise ValueError(
@@ -226,7 +228,7 @@ def importance(
     prior = get_prior(bounds)
     flow = prior if flow is None else flow
 
-    samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
+    samples, log_flows = flow.sample_and_log_prob(key, (n,))
     log_priors = prior.log_prob(samples)
     parameters = dict(zip(names, samples.T))
     log_lkls = log_likelihood(parameters)
@@ -235,5 +237,5 @@ def importance(
     return dict(
         samples = samples,
         log_weights = log_weights,
-        **_importance(log_weights, batch_size),
+        **_importance(log_weights),
     )
