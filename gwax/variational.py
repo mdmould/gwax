@@ -150,7 +150,7 @@ def trainer(
     def update(carry, step):
         key, params, state = carry
         key, _key = jax.random.split(key)
-        loss, grad = equinox.filter_value_and_grad(loss_fn)(params, key, step)
+        loss, grad = equinox.filter_value_and_grad(loss_fn)(params, _key, step)
         updates, state = optimizer.update(grad, state, params)
         params = equinox.apply_updates(params, updates)
         return (key, params, state), loss
