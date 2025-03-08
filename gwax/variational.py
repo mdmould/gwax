@@ -87,7 +87,7 @@ def trainer(
     optimizer = None,
     taper = None,
     temper_schedule = None,
-    tqdm_args = {},
+    **tqdm_kwargs,
 ):
     print('GWAX - getting ready...')
 
@@ -121,6 +121,12 @@ def trainer(
         is_leaf = lambda leaf: isinstance(leaf, NonTrainable),
     )
 
+    def loss_fn(params, key, step):
+        flow = equinox.combine(params, static)
+        samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
+        log_targets = log_target(samples) * temper_schedule(step)
+        return jnp.mean(log_flows - log_targets)
+
     if optimizer is None:
         optimizer = optax.adam
     if callable(optimizer):
@@ -136,14 +142,8 @@ def trainer(
         tqdm_type = 'auto',
         desc = 'GWAX - variational training',
     )
-    for arg in tqdm_args:
-        tqdm_defaults[arg] = tqdm_args[arg]
-
-    def loss_fn(params, key, step):
-        flow = equinox.combine(params, static)
-        samples, log_flows = flow.sample_and_log_prob(key, (batch_size,))
-        log_targets = log_target(samples) * temper_schedule(step)
-        return jnp.mean(log_flows - log_targets)
+    for arg in tqdm_kwargs:
+        tqdm_defaults[arg] = tqdm_kwargs[arg]
 
     @jax_tqdm.scan_tqdm(steps, **tqdm_defaults)
     @equinox.filter_jit
@@ -173,7 +173,7 @@ def _importance(log_weights, n = None):
     log_sq_mean = 2 * log_evidence
     log_mean_sq = jax.nn.logsumexp(2 * log_weights) - jnp.log(n)
     efficiency = jnp.exp(log_sq_mean - log_mean_sq)
-    ess = eff * n
+    ess = efficiency * n
     log_evidence_variance = 1 / ess - 1 / n
     log_evidence_sigma = log_evidence_variance ** 0.5
     return dict(
@@ -187,10 +187,10 @@ def importance(
     key,
     prior_bounds,
     likelihood = None,
-    loop = 'scan', # 'vmap', 'map', 'scan', or 'for'
     flow = None,
     n = 10_000,
-    tqdm_args = {},
+    loop = 'scan', # 'vmap', 'map', 'scan', or 'for'
+    **tqdm_kwargs,
 ):
     _log_likelihood = get_log_likelihood(likelihood, False)
     _log_likelihood = equinox.filter_jit(_log_likelihood)
@@ -208,8 +208,8 @@ def importance(
             tqdm_type = 'auto',
             desc = 'GWAX - importance sampling',
         )
-        for arg in tqdm_args:
-            tqdm_defaults[arg] = tqdm_args[arg]
+        for arg in tqdm_kwargs:
+            tqdm_defaults[arg] = tqdm_kwargs[arg]
         log_likelihood = lambda parameters: jax.lax.scan(
             jax_tqdm.scan_tqdm(n, **tqdm_defaults)(
                 lambda carry, ip: (None, _log_likelihood(ip[1])),
