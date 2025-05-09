@@ -161,7 +161,7 @@ def trainer(
         update, (key, params, state), jnp.arange(steps),
     )
     flow = equinox.combine(params, static)
-    print(f'GWAX: Total time = {time.time() - t0} s')
+    print(f'GWAX - total time = {time.time() - t0} s')
 
     return flow, losses
 
