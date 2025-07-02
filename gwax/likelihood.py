@@ -4,8 +4,8 @@ import jax.numpy as jnp
 
 def mean_and_variance(weights, n):
     # mean and variance of the mean
-    mean = jnp.sum(weights, axis = -1) / n
-    variance = jnp.sum(weights**2, axis = -1) / n**2 - mean**2 / n
+    mean = jnp.sum(weights) / n
+    variance = jnp.sum(weights**2) / n**2 - mean**2 / n
     return mean, variance
 
 def ln_mean_and_variance(weights, n):
@@ -21,15 +21,22 @@ def ln_mean_and_variance(weights, n):
 #     return ln_mean, variance
 
 
-def ln_likelihood_and_variance(posteriors, injections, model, parameters):
-    pe_weights = model(posteriors, parameters) / posteriors['prior'])
-    vt_weights = model(injections, parameters) / injections['prior'])
+def shape_ln_likelihood_and_variance(posteriors, injections, density, parameters):
+    pe_weights = density(posteriors, parameters) / posteriors['prior']
+    vt_weights = density(injections, parameters) / injections['prior']
     num_obs, num_pe = pe_weights.shape
-    ln_lkls, pe_variances = ln_mean_and_variance(pe_weights, num_pe)
+    ln_lkls, pe_variances = jax.vmap(lambda weights: ln_mean_variance(weights, num_pe))(pe_weights)
+    ln_pdet, vt_variance = ln_mean_and_variance(vt_weights, injections['total'])
+    ln_lkl = jnp.sum(ln_lkls) - ln_pdet * num_obs
+    variance = jnp.sum(pe_variances) + vt_variance * num_obs**2
+    return ln_lkl, variance
+
+def rate_ln_likelihood_and_variance(posteriors, injections, density, parameters):
+    pe_weights = density(posteriors, parameters) / posteriors['prior'])
+    vt_weights = density(injections, parameters) / injections['prior'])
+    num_obs, num_pe = pe_weights.shape
+    ln_lkls, pe_variances = jax.vmap(lambda weights: ln_mean_variance(weights, num_pe))(pe_weights)
     rate, vt_variance = mean_and_variance(vt_weights, injections['total'])
     ln_lkl = jnp.sum(ln_lkls) - rate * injections['time']
     variance = jnp.sum(pe_variances) + vt_variance * injections['time']**2
-    # ln_lkl = jnp.nan_to_num(ln_lkl, nan = -jnp.inf)
-    # variance = jnp.nan_to_num(variance, nan = jnp.inf)
     return ln_lkl, variance
-
