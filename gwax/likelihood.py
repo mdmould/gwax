@@ -32,8 +32,8 @@ def shape_ln_likelihood_and_variance(posteriors, injections, density, parameters
     return ln_lkl, variance
 
 def rate_ln_likelihood_and_variance(posteriors, injections, density, parameters):
-    pe_weights = density(posteriors, parameters) / posteriors['prior'])
-    vt_weights = density(injections, parameters) / injections['prior'])
+    pe_weights = density(posteriors, parameters) / posteriors['prior']
+    vt_weights = density(injections, parameters) / injections['prior']
     num_obs, num_pe = pe_weights.shape
     ln_lkls, pe_variances = jax.vmap(lambda weights: ln_mean_variance(weights, num_pe))(pe_weights)
     rate, vt_variance = mean_and_variance(vt_weights, injections['total'])
