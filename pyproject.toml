@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gwax"
-version = "0.0.8"
+version = "0.1.0"
 authors = [
   { name = "Matthew Mould", email = "mattdmould@gmail.com" },
 ]
 description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     'flowjax>=17.0.0',
     'jax_tqdm>=0.2.2',
-    'gwpopulation==1.1.1',
+    'bilby',
+    'wcosmo',
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
