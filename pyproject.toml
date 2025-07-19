@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     'flowjax>=17.0.0',
     'jax_tqdm>=0.2.2',
