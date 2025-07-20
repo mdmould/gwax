@@ -122,7 +122,7 @@ def left_trucated_powerlaw(x, alpha, lo):
     cut = lo <= x
     shape = x ** alpha
     norm = - lo ** (alpha + 1) / (alpha + 1)
-    return (shape / norm) * cut)
+    return (shape / norm) * cut
 
 def truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi):
     cut = (lo <= x) * (x <= hi)

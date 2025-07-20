@@ -11,7 +11,7 @@ def estimator_and_variance(weights, n, axis = None):
 
 def ln_estimator_and_variance(weights, n, axis = None):
     # lazy ln(mean) and variance of ln(mean)
-    mean, variance = mean_and_variance(weights, n, axis = axis)
+    mean, variance = estimator_and_variance(weights, n, axis = axis)
     return jnp.log(mean), variance / mean ** 2
 
 # def ln_estimator_and_variance(ln_weights, n):
