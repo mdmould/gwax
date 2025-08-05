@@ -21,7 +21,6 @@ def ln_estimator_and_variance(weights, n, axis = None):
 #     variance = 1 / ess - 1 / n
 #     return ln_mean, variance
 
-
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
     num_obs, num_pe = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
@@ -34,6 +33,9 @@ def shape_likelihood_ingredients(posteriors, injections, density, parameters):
         variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2,
         ln_vt = ln_vt,
     )
+
+def resample_rate(key, num_obs, vt):
+    return jax.random.gamma(key, num_obs, shape = vt.shape) / vt
 
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
     num_obs, num_pe = posteriors['weight'].shape
@@ -88,10 +90,6 @@ class BilbyLikelihood(bilby.Likelihood):
         return self._likelihood_ingredients(self.posteriors, self.injections, parameters)
 
 
-def resample_rate(key, num_obs, ln_vt):
-    return jax.random.gamma(key, num_obs, shape = ln_vt.shape) / jnp.exp(ln_vt)
-
-
 def postprocess(result, likelihood):
     n = len(result.posterior)
     posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
@@ -106,7 +104,7 @@ def postprocess(result, likelihood):
     # this assume the redshift evolution = 1 at redshift = 0
     if 'ln_vt' in ingredients:
         ingredients['rate_0'] = resample_rate(
-            jax.random.key(0), likelihood.num_obs, ingredients['ln_vt'],
+            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
         )
 
     for k in ingredients:
