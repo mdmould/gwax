@@ -23,9 +23,9 @@ def ln_estimator_and_variance(weights, n, axis = None):
 
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, num_pe = posteriors['weights'].shape
-    pe_weights = density(posteriors, parameters) * posteriors['weights']
-    vt_weights = density(injections, parameters) * injections['weights']
+    num_obs, num_pe = posteriors['weight'].shape
+    pe_weights = density(posteriors, parameters) * posteriors['weight']
+    vt_weights = density(injections, parameters) * injections['weight']
     ln_lkls, pe_variances = ln_estimator_and_variance(pe_weights, posteriors['total'], axis = -1)
     ln_volume, vt_variance = ln_estimator_and_variance(vt_weights, injections['total'])
     ln_vt = ln_volume + jnp.log(injections['time']) # dependence of variance on T cancels
@@ -36,9 +36,9 @@ def shape_likelihood_ingredients(posteriors, injections, density, parameters):
     )
 
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, num_pe = posteriors['weights'].shape
-    pe_weights = density(posteriors, parameters) * posteriors['weights']
-    vt_weights = density(injections, parameters) * injections['weights']
+    num_obs, num_pe = posteriors['weight'].shape
+    pe_weights = density(posteriors, parameters) * posteriors['weight']
+    vt_weights = density(injections, parameters) * injections['weight']
     ln_lkls, pe_variances = ln_estimator_and_variance(pe_weights, posteriors['total'], axis = -1)
     rate, vt_variance = estimator_and_variance(vt_weights, injections['total'])
     num_exp = rate * injections['time']
