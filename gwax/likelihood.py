@@ -90,30 +90,6 @@ class BilbyLikelihood(bilby.Likelihood):
         return self._likelihood_ingredients(self.posteriors, self.injections, parameters)
 
 
-def postprocess(result, likelihood):
-    n = len(result.posterior)
-    posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
-
-    @jax_tqdm.scan_tqdm(n, print_rate = 1, tqdm_type = 'std')
-    def single(carry, x):
-        i, parameters = x
-        return carry, likelihood.likelihood_ingredients(parameters)
-
-    ingredients = jax.lax.scan(single, None, (jnp.arange(n), posterior))[1]
-
-    # this assume the redshift evolution = 1 at redshift = 0
-    if 'ln_vt' in ingredients:
-        ingredients['rate_0'] = resample_rate(
-            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
-        )
-
-    for k in ingredients:
-        result.posterior[k] = np.array(ingredients[k])
-    result.save_to_file(overwrite = True, extension = 'hdf5')
-
-    return result
-
-
 def prior_fraction(likelihood, priors, n = 10_000):
     samples = priors.sample(n)
     for k in samples:
@@ -134,8 +110,8 @@ def prior_fraction(likelihood, priors, n = 10_000):
     return frac, error
 
 
-def evidence(result, likelihood, priors):
-    fraction, fraction_error = prior_fraction(likelihood, priors)
+def evidence(likelihood, priors, n = 10_000):
+    fraction, fraction_error = prior_fraction(likelihood, priors, n)
     fraction = float(fraction)
     fraction_error = float(fraction_error)
     return dict(
@@ -148,7 +124,31 @@ def evidence(result, likelihood, priors):
             result.log_evidence_err ** 2 + (fraction_error / fraction) ** 2
         ) ** 0.5,
     )
+
+
+def postprocess_bilby(result, likelihood, priors):
+    n = len(result.posterior)
+    posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
+
+    @jax_tqdm.scan_tqdm(n, print_rate = 1, tqdm_type = 'std')
+    def single(carry, x):
+        i, parameters = x
+        return carry, likelihood.likelihood_ingredients(parameters)
+
+    ingredients = jax.lax.scan(single, None, (jnp.arange(n), posterior))[1]
+
+    if 'ln_vt' in ingredients:
+        ingredients['rate'] = resample_rate(
+            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
+        )
+
+    for k in ingredients:
+        result.posterior[k] = np.array(ingredients[k])
+
+    result.save_to_file(overwrite = True, extension = 'hdf5')
+
     file = f'{result.outdir}/{result.label}_evidences.json'
     with open(file, 'w') as f:
-        json.dump(d, f)
-    return d
+        json.dump(evidence(likelihood, priors), f)
+
+    return result
