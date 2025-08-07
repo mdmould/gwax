@@ -65,7 +65,7 @@ def ln_likelihood(
 class BilbyLikelihood(bilby.Likelihood):
     def __init__(self, likelihood_ingredients, posteriors, injections, density, maximum_variance):
         super().__init__({})
-        self.num_obs = posteriors['prior'].shape[0]
+        self.num_obs = posteriors['weight'].shape[0]
         self.posteriors = posteriors
         self.injections = injections
         self.maximum_variance = maximum_variance
