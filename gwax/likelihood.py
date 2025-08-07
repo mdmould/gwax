@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import jax_tqdm
 import bilby
 
 
