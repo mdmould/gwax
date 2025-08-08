@@ -144,7 +144,7 @@ def postprocess_bilby(result, likelihood, priors):
         )
 
     for k in ingredients:
-        result.posterior[k] = np.array(ingredients[k])
+        result.posterior[k] = ingredients[k]
 
     result.save_to_file(overwrite = True, extension = 'hdf5')
 
