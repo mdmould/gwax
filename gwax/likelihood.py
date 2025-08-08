@@ -91,7 +91,7 @@ class BilbyLikelihood(bilby.Likelihood):
         return self._likelihood_ingredients(self.posteriors, self.injections, parameters)
 
 
-def postprocess_bilby(result, likelihood, priors):
+def postprocess_bilby(result, likelihood):
     n = len(result.posterior)
     posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
 
