@@ -91,6 +91,28 @@ class BilbyLikelihood(bilby.Likelihood):
         return self._likelihood_ingredients(self.posteriors, self.injections, parameters)
 
 
+def postprocess_bilby(result, likelihood, priors):
+    n = len(result.posterior)
+    posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
+
+    @jax_tqdm.scan_tqdm(n, print_rate = 1, tqdm_type = 'std')
+    def single(carry, x):
+        i, parameters = x
+        return carry, likelihood.likelihood_ingredients(parameters)
+
+    ingredients = jax.lax.scan(single, None, (jnp.arange(n), posterior))[1]
+
+    if 'ln_vt' in ingredients:
+        ingredients['rate'] = resample_rate(
+            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
+        )
+
+    for k in ingredients:
+        result.posterior[k] = ingredients[k]
+
+    return result
+
+
 def prior_fraction(likelihood, priors, n = 10_000):
     samples = priors.sample(n)
     for k in samples:
@@ -125,31 +147,3 @@ def evidence(likelihood, priors, n = 10_000):
             result.log_evidence_err ** 2 + (fraction_error / fraction) ** 2
         ) ** 0.5,
     )
-
-
-def postprocess_bilby(result, likelihood, priors):
-    n = len(result.posterior)
-    posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
-
-    @jax_tqdm.scan_tqdm(n, print_rate = 1, tqdm_type = 'std')
-    def single(carry, x):
-        i, parameters = x
-        return carry, likelihood.likelihood_ingredients(parameters)
-
-    ingredients = jax.lax.scan(single, None, (jnp.arange(n), posterior))[1]
-
-    if 'ln_vt' in ingredients:
-        ingredients['rate'] = resample_rate(
-            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
-        )
-
-    for k in ingredients:
-        result.posterior[k] = ingredients[k]
-
-    result.save_to_file(overwrite = True, extension = 'hdf5')
-
-    file = f'{result.outdir}/{result.label}_evidences.json'
-    with open(file, 'w') as f:
-        json.dump(evidence(likelihood, priors), f)
-
-    return result
