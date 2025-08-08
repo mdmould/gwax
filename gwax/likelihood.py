@@ -133,7 +133,7 @@ def prior_fraction(likelihood, priors, n = 10_000):
     return frac, error
 
 
-def evidence(likelihood, priors, n = 10_000):
+def evidence(result, likelihood, priors, n = 10_000):
     fraction, fraction_error = prior_fraction(likelihood, priors, n)
     fraction = float(fraction)
     fraction_error = float(fraction_error)
