@@ -142,7 +142,7 @@ def evidence(result, likelihood, priors, n = 10_000):
         prior_fraction_error = fraction_error,
         ln_evidence_bilby = result.log_evidence,
         ln_evidence_bilby_error = result.log_evidence_err,
-        ln_evidence = result.log_evidence + np.log(fraction),
+        ln_evidence = result.log_evidence + float(jnp.log(fraction)),
         ln_evidence_error = (
             result.log_evidence_err ** 2 + (fraction_error / fraction) ** 2
         ) ** 0.5,
