@@ -118,7 +118,7 @@ def truncated_powerlaw(x, alpha, lo, hi):
     return (shape / norm) * cut
 
 # alpha < -1
-def left_trucated_powerlaw(x, alpha, lo):
+def left_truncated_powerlaw(x, alpha, lo):
     cut = lo <= x
     shape = x ** alpha
     norm = - lo ** (alpha + 1) / (alpha + 1)
