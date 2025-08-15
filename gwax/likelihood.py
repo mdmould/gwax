@@ -52,7 +52,6 @@ def rate_likelihood_ingredients(posteriors, injections, density, parameters):
     )
 
 
-
 def ln_likelihood(
     likelihood_ingredients, maximum_variance,
     posteriors, injections, density, parameters,
@@ -62,33 +61,36 @@ def ln_likelihood(
     variance = jnp.nan_to_num(ingredients['variance'], nan = jnp.inf)
     return jnp.where(variance < maximum_variance, ln_lkl, -jnp.inf)
 
-
 class BilbyLikelihood(bilby.Likelihood):
-    def __init__(self, likelihood_ingredients, posteriors, injections, density, maximum_variance):
+    def __init__(
+        self, likelihood_ingredients, posteriors, injections, density, maximum_variance,
+    ):
         super().__init__({})
         self.num_obs = posteriors['weight'].shape[0]
         self.posteriors = posteriors
         self.injections = injections
         self.maximum_variance = maximum_variance
 
-        self.ln_likelihood = jax.jit(
+        self._log_likelihood = \
             lambda posteriors, injections, parameters: ln_likelihood(
                 likelihood_ingredients, maximum_variance,
                 posteriors, injections, density, parameters,
-            ),
-        )
+            )
 
-        self._likelihood_ingredients = jax.jit(
+        self._likelihood_ingredients = \
             lambda posteriors, injections, parameters: likelihood_ingredients(
                 posteriors, injections, density, parameters,
-            ),
-        )
+            )
 
     def log_likelihood(self):
-        return self.ln_likelihood(self.posteriors, self.injections, self.parameters)
+        return jax.jit(self._log_likelihood)(
+            self.posteriors, self.injections, self.parameters,
+        )
 
     def likelihood_ingredients(self, parameters):
-        return self._likelihood_ingredients(self.posteriors, self.injections, parameters)
+        return jax.jit(self._likelihood_ingredients)(
+            self.posteriors, self.injections, parameters,
+        )
 
 
 def postprocess_bilby(result, likelihood):
