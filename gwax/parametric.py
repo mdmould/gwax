@@ -25,19 +25,7 @@ def truncated_normal(x, mu, sigma, lo, hi):
         - jax.scipy.stats.norm.cdf(lo, mu, sigma)
         + jax.scipy.stats.norm.cdf(hi, mu, sigma)
     )
-    return (shape / norm) * cut
-
-def left_truncated_normal(x, mu, sigma, lo):
-    cut = lo <= x
-    shape = jax.scipy.stats.norm.pdf(x, mu, sigma)
-    norm = 1 - jax.scipy.stats.norm.cdf(lo, mu, sigma)
-    return (shape / norm) * cut
-
-def right_truncated_normal(x, mu, sigma, hi):
-    cut = x <= hi
-    shape = jax.scipy.stats.norm.pdf(x, mu, sigma)
-    norm = jax.scipy.stats.norm.cdf(hi, mu, sigma)
-    return (shape / norm) * cut
+    return cut * shape / norm
 
 def normal_integral(x, mu, sigma, loc, delta):
     m, s, c, d = mu, sigma, loc, delta
@@ -53,99 +41,39 @@ def normal_integral(x, mu, sigma, loc, delta):
         )
     ) / 2 / d ** 3
 
-def highpass_normal(x, mu, sigma, lo, dlo):
-    cut = lo <= x
-    shape = jax.scipy.stats.norm.pdf(x, mu, sigma) * highpass(x, lo, dlo)
-    norm = (
-        - normal_integral(lo, mu, sigma, lo, dlo)
-        + normal_integral(lo + dlo, mu, sigma, lo, dlo)
-        - jax.scipy.stats.norm.cdf(lo + dlo, mu, sigma)
-        + 1
-    )
-    return (shape / norm) * cut
-
 def highpass_truncated_normal(x, mu, sigma, lo, hi, dlo):
     cut = (lo <= x) * (x <= hi)
     shape = jax.scipy.stats.norm.pdf(x, mu, sigma) * highpass(x, lo, dlo)
     norm = (
         - normal_integral(lo, mu, sigma, lo, dlo)
         + normal_integral(lo + dlo, mu, sigma, lo, dlo)
+    ) + (
         - jax.scipy.stats.norm.cdf(lo + dlo, mu, sigma)
         + jax.scipy.stats.norm.cdf(hi, mu, sigma)
     )
-    return (shape / norm) * cut
-
-def lowpass_normal(x, mu, sigma, hi, dhi):
-    cut = x <= hi
-    shape = jax.scipy.stats.norm.pdf(x, mu, sigma) * lowpass(x, hi, dhi)
-    norm = (
-        + jax.scipy.stats.norm.cdf(hi - dhi, mu, sigma)
-        - normal_integral(hi - dhi, mu, sigma, hi, - dhi)
-        + normal_integral(hi, mu, sigma, hi, - dhi)
-    )
-    return (shape / norm) * cut
-
-def lowpass_truncated_normal(x, mu, sigma, lo, hi, dhi):
-    cut = (lo <= x) * (x <= hi)
-    shape = jax.scipy.stats.norm.pdf(x, mu, sigma) * lowpass(x, hi, dhi)
-    norm = (
-        - jax.scipy.stats.norm.cdf(lo, mu, sigma)
-        + jax.scipy.stats.norm.cdf(hi - dhi, mu, sigma)
-        - normal_integral(hi - dhi, mu, sigma, hi, - dhi)
-        + normal_integral(hi, mu, sigma, hi, - dhi)
-    )
-    return (shape / norm) * cut
+    return cut * shape / norm
 
 def bandpass_normal(x, mu, sigma, lo, hi, dlo, dhi):
     cut = (lo <= x) * (x <= hi)
-    shape = \
-        jax.scipy.stats.norm.pdf(x, mu, sigma) * bandpass(x, lo, hi, dlo, dhi)
+    shape = jax.scipy.stats.norm.pdf(x, mu, sigma) * bandpass(x, lo, hi, dlo, dhi)
     norm = (
         - normal_integral(lo, mu, sigma, lo, dlo)
         + normal_integral(lo + dlo, mu, sigma, lo, dlo)
+    ) + (
         - jax.scipy.stats.norm.cdf(lo + dlo, mu, sigma)
         + jax.scipy.stats.norm.cdf(hi - dhi, mu, sigma)
+    ) + (
         - normal_integral(hi - dhi, mu, sigma, hi, - dhi)
         + normal_integral(hi, mu, sigma, hi, - dhi)
     )
-    return (shape / norm) * cut
+    return cut * shape / norm
 
 
 def truncated_powerlaw(x, alpha, lo, hi):
     cut = (lo <= x) * (x <= hi)
     shape = x ** alpha
     norm = (hi ** (alpha + 1) - lo ** (alpha + 1)) / (alpha + 1)
-    return (shape / norm) * cut
-
-# alpha < -1
-def left_truncated_powerlaw(x, alpha, lo):
-    cut = lo <= x
-    shape = x ** alpha
-    norm = - lo ** (alpha + 1) / (alpha + 1)
-    return (shape / norm) * cut
-
-def truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi):
-    cut = (lo <= x) * (x <= hi)
-    # shape = (x / loc) ** alpha1 * (x <= loc) + (x / loc) ** alpha2 * (loc < x)
-    shape = (x / loc) ** jnp.where(x <= loc, alpha1, alpha2)
-    norm = (
-        - lo ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
-        + hi ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
-    )
-    return (shape / norm) * cut
-
-# alpha2 < -1
-def left_truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo):
-    cut = lo <= x
-    shape = shape = (x / loc) ** jnp.where(x <= loc, alpha1, alpha2)
-    norm = (
-        - lo ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
-    )
-    return (shape / norm) * cut
+    return cut * shape / norm
 
 def powerlaw_integral(x, alpha, loc, delta):
     a, c, d = alpha, loc, delta
@@ -155,39 +83,44 @@ def powerlaw_integral(x, alpha, loc, delta):
         - 2 * (x - c) ** 3
     ) * x ** (1 + a) / (4 + a) / d ** 3
 
-def highpass_powerlaw(x, alpha, lo, dlo):
-    cut = lo <= x
-    shape = x ** alpha * highpass(x, lo, dlo)
-    norm = (
-        - powerlaw_integral(lo, alpha, lo, dlo)
-        + powerlaw_integral(lo + dlo, alpha, lo, dlo)
-        - (lo + dlo) ** (alpha + 1) / (alpha + 1)
-    )
-    return (shape / norm) * cut
-
 def highpass_truncated_powerlaw(x, alpha, lo, hi, dlo):
     cut = (lo <= x) * (x <= hi)
     shape = x ** alpha * highpass(x, lo, dlo)
     norm = (
         - powerlaw_integral(lo, alpha, lo, dlo)
         + powerlaw_integral(lo + dlo, alpha, lo, dlo)
+    ) + (
         - (lo + dlo) ** (alpha + 1) / (alpha + 1)
         + hi ** (alpha + 1) / (alpha + 1)
     )
-    return (shape / norm) * cut
+    return cut * shape / norm
 
-def highpass_broken_powerlaw(x, alpha1, alpha2, loc, lo, dlo):
-    cut = lo <= x
-    alpha = jnp.where(x <= loc, alpha1, alpha2)
-    shape = (x / loc) ** alpha * highpass(x, lo, dlo)
+def bandpass_powerlaw(x, alpha, lo, hi, dlo, dhi):
+    cut = (lo <= x) * (x <= hi)
+    shape = x ** alpha * bandpass(x, lo, hi, dlo, dhi)
     norm = (
-        - powerlaw_integral(lo, alpha1, lo, dlo) / loc ** alpha1
-        + powerlaw_integral(lo + dlo, alpha1, lo, dlo) / loc ** alpha1
-        - (lo + dlo) ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
-        - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
+        - powerlaw_integral(lo, alpha, lo, dlo)
+        + powerlaw_integral(lo + dlo, alpha, lo, dlo)
+    ) + (
+        - (lo + dlo) ** (alpha + 1) / (alpha + 1)
+        + (hi - dhi) ** (alpha + 1) / (alpha + 1)
+    ) + (
+        - powerlaw_integral(hi - dhi, alpha, hi, - dhi)
+        + powerlaw_integral(hi, alpha, hi, - dhi)
     )
-    return (shape / norm) * cut
+    return cut * shape / norm
+
+def truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi):
+    cut = (lo <= x) * (x <= hi)
+    shape = (x / loc) ** jnp.where(x <= loc, alpha1, alpha2)
+    norm = (
+        - lo ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
+        + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
+    ) + (
+        - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
+        + hi ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
+    )
+    return cut * shape / norm
 
 def highpass_truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi, dlo):
     cut = (lo <= x) * (x <= hi)
@@ -196,38 +129,29 @@ def highpass_truncated_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi, dlo):
     norm = (
         - powerlaw_integral(lo, alpha1, lo, dlo) / loc ** alpha1
         + powerlaw_integral(lo + dlo, alpha1, lo, dlo) / loc ** alpha1
+    ) + (
         - (lo + dlo) ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
         + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
+    ) + (
         - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
         + hi ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
     )
-    return (shape / norm) * cut
-
-def bandpass_powerlaw(x, alpha, lo, hi, dlo, dhi):
-    cut = (lo <= x) * (x <= hi)
-    shape = x ** alpha * bandpass(x, lo, hi, dlo, dhi)
-    norm = (
-        - powerlaw_integral(lo, alpha, lo, dlo)
-        + powerlaw_integral(lo + dlo, alpha, lo, dlo)
-        - (lo + dlo) ** (alpha + 1) / (alpha + 1)
-        + (hi - dhi) ** (alpha + 1) / (alpha + 1)
-        - powerlaw_integral(hi - dhi, alpha, hi, -dhi)
-        + powerlaw_integral(hi, alpha, hi, -dhi)
-    )
-    return (shape / norm) * cut
+    return cut * shape / norm
 
 def bandpass_broken_powerlaw(x, alpha1, alpha2, loc, lo, hi, dlo, dhi):
     cut = (lo <= x) * (x <= hi)
-    alpha = jnp.where(x <= loc, alpha1, alpha2)
-    shape = (x / loc) ** alpha * bandpass(x, lo, hi, dlo, dhi)
+    shape = (x / loc) ** jnp.where(x <= loc, alpha1, alpha2) * bandpass(x, lo, hi, dlo, dhi)
     norm = (
         - powerlaw_integral(lo, alpha1, lo, dlo) / loc ** alpha1
         + powerlaw_integral(lo + dlo, alpha1, lo, dlo) / loc ** alpha1
+    ) + (
         - (lo + dlo) ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
         + loc ** (alpha1 + 1) / (alpha1 + 1) / loc ** alpha1
+    ) + (
         - loc ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
         + (hi - dhi) ** (alpha2 + 1) / (alpha2 + 1) / loc ** alpha2
+    ) + (
         - powerlaw_integral(hi - dhi, alpha2, hi, -dhi) / loc ** alpha2
         + powerlaw_integral(hi, alpha2, hi, -dhi) / loc ** alpha2
     )
-    return (shape / norm) * cut
+    return cut * shape / norm
