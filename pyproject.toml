@@ -12,14 +12,14 @@ description = "Gravitational-wave astronomy in JAX"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    'jax',
-    'jax_tqdm',
-    'equinox',
-    'optax',
-    'flowjax',
-    'numpyro',
-    'bilby',
-    'wcosmo',
+#    'jax',
+#    'jax_tqdm',
+#    'equinox',
+#    'optax',
+#    'flowjax',
+#    'numpyro',
+#    'bilby',
+#    'wcosmo',
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
