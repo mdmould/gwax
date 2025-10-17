@@ -1,7 +1,6 @@
+import os
 from glob import glob
 import h5py
-import jax
-import jax.numpy as jnp
 import numpy as np
 from tqdm import tqdm
 
@@ -228,7 +227,7 @@ def get_posteriors(
                 ))
 
         posteriors = {
-            k: jnp.array([posteriors[event][k] for event in posteriors])
+            k: np.array([posteriors[event][k] for event in posteriors])
             for k in keys + ['weight', 'total']
         }
 
@@ -317,6 +316,6 @@ def get_injections(
 
     injections['weight'] = 1 / prior
 
-    injections = {key: jnp.array(injections[key]) for key in injections}
+    injections = {key: np.array(injections[key]) for key in injections}
 
     return injections
