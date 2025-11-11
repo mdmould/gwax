@@ -67,11 +67,11 @@ def get_posteriors(
     if catalog == 'gwtc4':
         url += ',GWTC-4.0'
     url += f'&min-mass-2-source={min_mass}&max-far={1 / min_ifar}'
-    os.system(f'wget -O ../data/events.txt "{url}"')
-    events = np.loadtxt(
-        f'../data/events.txt', dtype = str, skiprows = 1, usecols = 1,
-    )
-    events = sorted(str(event) for event in events)
+    os.system(f'wget -O ./events.txt "{url}"')
+    events = sorted(str(event) for event in np.loadtxt(
+        './events.txt', dtype = str, skiprows = 1, usecols = 1,
+    ))
+    os.system('rm ./events.txt')
 
     paths = [
         f'{path}/lvk-data/{gwtc}/PE'
