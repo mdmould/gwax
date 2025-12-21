@@ -165,8 +165,9 @@ def get_posteriors(
                     analysis = 'C00:Mixed:HighSpin'
                 else:
                     analysis = None
-                    for analysis in 'C00:NRSur7dq4', 'C00:Mixed', 'C01:Mixed':
-                        if analysis in f:
+                    for key in 'C00:NRSur7dq4', 'C00:Mixed', 'C01:Mixed':
+                        if key in f:
+                            analysis = key
                             break
                     assert analysis is not None
 
