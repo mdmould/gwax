@@ -24,6 +24,24 @@ def standard_prior(redshift):
     ).prob(redshift) * (1 + redshift) ** 2
 
 
+def get_events(catalog = 'gwtc4', min_ifar = 1, min_mass = 3):
+    url = (
+        'https://gwosc.org/eventapi/ascii/query/show?release='
+        'GWTC-1-confident,GWTC-1-marginal,'
+        'GWTC-2.1-confident,GWTC-2.1-marginal,'
+        'GWTC-3-confident,GWTC-3-marginal'
+    )
+    if catalog == 'gwtc4':
+        url += ',GWTC-4.0'
+    url += f'&min-mass-2-source={min_mass}&max-far={1 / min_ifar}'
+    os.system(f'wget -O ./events.txt "{url}"')
+    events = sorted(str(event) for event in np.loadtxt(
+        './events.txt', dtype = str, skiprows = 1, usecols = 1,
+    ))
+    os.system('rm ./events.txt')
+    return events
+
+
 def get_posteriors(
     path,
     catalog = 'gwtc4',
@@ -34,6 +52,7 @@ def get_posteriors(
     mass_ratio = False,
     chi_eff = False,
     downsample = True,
+    extra_keys = None,
 ):
     catalog = catalog.lower()
     assert catalog in ('gwtc3', 'gwtc4')
@@ -58,20 +77,7 @@ def get_posteriors(
         ]
     exclude = sorted(set(exclude))
 
-    url = (
-        'https://gwosc.org/eventapi/ascii/query/show?release='
-        'GWTC-1-confident,GWTC-1-marginal,'
-        'GWTC-2.1-confident,GWTC-2.1-marginal,'
-        'GWTC-3-confident,GWTC-3-marginal'
-    )
-    if catalog == 'gwtc4':
-        url += ',GWTC-4.0'
-    url += f'&min-mass-2-source={min_mass}&max-far={1 / min_ifar}'
-    os.system(f'wget -O ./events.txt "{url}"')
-    events = sorted(str(event) for event in np.loadtxt(
-        './events.txt', dtype = str, skiprows = 1, usecols = 1,
-    ))
-    os.system('rm ./events.txt')
+    events = get_events(catalog, min_ifar, min_mass)
 
     paths = [
         f'{path}/lvk-data/{gwtc}/PE'
@@ -89,6 +95,9 @@ def get_posteriors(
         keys.append('chi_eff')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+
+    if extra_keys is not None:
+        keys += list(extra_keys)
 
     posteriors = {}
 
