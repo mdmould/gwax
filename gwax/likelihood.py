@@ -65,7 +65,7 @@ class BilbyLikelihood(bilby.Likelihood):
     def __init__(
         self, likelihood_ingredients, posteriors, injections, density, maximum_variance,
     ):
-        super().__init__({})
+        super().__init__()
         self.num_obs = posteriors['weight'].shape[0]
         self.posteriors = posteriors
         self.injections = injections
@@ -82,9 +82,9 @@ class BilbyLikelihood(bilby.Likelihood):
                 posteriors, injections, density, parameters,
             )
 
-    def log_likelihood(self):
+    def log_likelihood(self, parameters):
         return jax.jit(self._log_likelihood)(
-            self.posteriors, self.injections, self.parameters,
+            self.posteriors, self.injections, parameters,
         )
 
     def likelihood_ingredients(self, parameters):
