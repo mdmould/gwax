@@ -55,28 +55,6 @@ def rate_likelihood_ingredients(posteriors, injections, density, parameters):
     )
 
 
-def ln_likelihood_and_variance(posteriors, injections, density, parameters):
-    weights = density(posteriors, parameters) * posteriors['weight']
-    weights = jnp.insert(weights, 0, 0)
-    n = jnp.insert(jnp.cumsum(posteriors['total']), 0, 0)
-    sums = jnp.cumsum(weights)
-    sums_sq = jnp.cumsum(weights ** 2)
-    sums = sums[n[1:]] - sums[n[:-1]]
-    sums_sq = sums_sq[n[1:]] - sums_sq[n[:-1]]
-    means = sums / posteriors['total']
-    variances = sums_sq / posteriors['total'] ** 2 - means ** 2 / posteriors['total']
-
-    weights = density(injections, parameters) * injections['weight']
-    mean = jnp.sum(weights) / injections['total']
-    variance = jnp.sum(weights ** 2) / injections['total'] ** 2 - mean ** 2 / injections['total']
-
-    ln_likelihood = jnp.log(means).sum() - mean * injections['time']
-    variance = jnp.sum(variances / means ** 2) + variance * injections['time'] ** 2
-
-    # print(means, mean, num, ln_likelihood, variances, variance)
-
-    return ln_likelihood, variance
-
 def estimator_and_variance_stacked(weights, n):
     weights = jnp.insert(weights, 0, 0)
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
