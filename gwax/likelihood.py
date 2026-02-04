@@ -137,7 +137,7 @@ class BilbyLikelihood(bilby.Likelihood):
         density,
     ):
         super().__init__()
-        self.num_obs = posteriors['weight'].shape[0]
+        self.num_obs = posteriors['total'].size
         self.posteriors = posteriors
         self.injections = injections
         self.maximum_variance = maximum_variance
