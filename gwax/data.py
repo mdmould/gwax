@@ -212,6 +212,8 @@ def get_posteriors_stacked(
         for analysis in posteriors[event]:
             posteriors[event][analysis]['weight'] /= norm
 
+    events = list(posteriors)
+
     if not stack:
         return posteriors, events, sorted(set(exclude))
 
