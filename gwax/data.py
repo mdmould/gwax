@@ -518,7 +518,7 @@ def get_injections(
     
         injections['weight'] = 1 / prior
 
-        for key in extra_keys:
+        for key in sorted(set(extra_keys)):
             injections[key] = prior if key == 'prior' else d[key][found]
     
         injections = {key: np.array(injections[key]) for key in injections}
