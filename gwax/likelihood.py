@@ -4,23 +4,25 @@ import jax_tqdm
 import bilby
 
 
-def estimator_and_variance(weights, n, axis = None):
-    # mean and variance of the mean
+def estimator_and_variance(weights, n, axis = -1):
     mean = jnp.sum(weights, axis = axis) / n
     variance = jnp.sum(weights ** 2, axis = axis) / n ** 2 - mean ** 2 / n
     return mean, variance
 
-def ln_estimator_and_variance(weights, n, axis = None):
-    # lazy ln(mean) and variance of ln(mean)
+def ln_estimator_and_variance(weights, n, axis = -1):
     mean, variance = estimator_and_variance(weights, n, axis = axis)
     return jnp.log(mean), variance / mean ** 2
 
-# def ln_estimator_and_variance(ln_weights, n):
-#     ln_sum = jax.nn.logsumexp(ln_weights, axis = -1)
-#     ln_mean = ln_sum - jnp.log(n)
-#     ess = jnp.exp(2 * ln_sum - jax.nn.logsumexp(2 * ln_weights, axis = -1))
-#     variance = 1 / ess - 1 / n
-#     return ln_mean, variance
+def ln_estimator_and_variance_from_ln(ln_weights, n, axis = -1):
+    ln_sum = jax.nn.logsumexp(ln_weights, axis = axis)
+    ln_mean = ln_sum - jnp.log(n)
+    ess = jnp.exp(2 * ln_sum - jax.nn.logsumexp(2 * ln_weights, axis = axis))
+    variance = 1 / ess - 1 / n
+    return ln_mean, variance
+
+def estimator_and_variance_from_ln(ln_weights, n, axis = -1):
+    ln_mean, variance = ln_estimator_and_variance_from_ln(ln_weights, n, axis = axis)
+    return jnp.exp(ln_mean), variance * jnp.exp(2 * ln_mean)
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
     num_obs, num_pe = posteriors['weight'].shape
@@ -56,8 +58,8 @@ def rate_likelihood_ingredients(posteriors, injections, density, parameters):
 
 
 def estimator_and_variance_stacked(weights, n):
-    weights = jnp.insert(weights, 0, 0)
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
+    weights = jnp.insert(weights, 0, 0)
     sums = jnp.cumsum(weights)
     sums_sq = jnp.cumsum(weights ** 2)
     sums = sums[idxs[1:]] - sums[idxs[:-1]]
@@ -69,6 +71,28 @@ def estimator_and_variance_stacked(weights, n):
 def ln_estimator_and_variance_stacked(weights, n):
     mean, variance = estimator_and_variance_stacked(weights, n)
     return jnp.log(mean), variance / mean ** 2
+
+def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
+    idxs = jnp.insert(jnp.cumsum(n), 0, 0)
+    ln_weights = jnp.insert(ln_weights, 0, -jnp.inf)
+    ln_sums = jnp.logaddexp.accumulate(ln_weights)
+    ln_sums_sq = jnp.logaddexp.accumulate(2 * ln_weights)
+    ln_sums = jax.nn.logsumexp(
+        jnp.array([ln_sums[idxs[1:]], ln_sums[idxs[:-1]]]),
+        b = jnp.array([1, -1]),
+    )
+    ln_sums_sq = jax.nn.logsumexp(
+        jnp.array([ln_sums_sq[idxs[1:]], ln_sums_sq[idxs[:-1]]]),
+        b = jnp.array([1, -1]),
+    )
+    ln_means = ln_sums - jnp.log(n)
+    ess = jnp.exp(2 * ln_sums - ln_sums_sq)
+    variances = 1 / ess - 1 / n
+    return ln_means, variances
+
+def estimator_and_variance_stacked_from_ln(ln_weights, n):
+    ln_means, variances = ln_estimator_and_variance_stacked_from_ln(ln_weights, n)
+    return jnp.exp(ln_means), variances * jnp.exp(2 * ln_means)
 
 def shape_likelihood_ingredients_stacked(
     posteriors, injections, density, parameters,
