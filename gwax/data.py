@@ -51,7 +51,7 @@ def get_posteriors_stacked(
     min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
-    extra_keys = None,
+    extra_keys = [],
     stack = True,
 ):
     catalog = catalog.lower()
@@ -95,9 +95,7 @@ def get_posteriors_stacked(
         keys.append('chi_eff')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
-
-    if extra_keys is not None:
-        keys += list(extra_keys)
+    keys = sorted(set(keys + list(extra_keys)))
 
     posteriors = {}
 
@@ -241,7 +239,7 @@ def get_posteriors(
     min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
-    extra_keys = None,
+    extra_keys = [],
     downsample = True,
 ):
     catalog = catalog.lower()
@@ -285,9 +283,7 @@ def get_posteriors(
         keys.append('chi_eff')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
-
-    if extra_keys is not None:
-        keys += list(extra_keys)
+    keys = sorted(set(keys + list(extra_keys)))
 
     posteriors = {}
 
@@ -446,6 +442,7 @@ def get_injections(
     min_snr = 10,
     mass_ratio = False,
     chi_eff = False,
+    extra_keys = [],
 ):
     if catalog == 'gwtc3':
         file = (
@@ -487,40 +484,43 @@ def get_injections(
         s2x = d['spin2x'][found]
         s2y = d['spin2y'][found]
         s2z = d['spin2z'][found]
+    
+        q = m2 / m1
+        a1 = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
+        a2 = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
+        c1 = s1z / a1
+        c2 = s2z / a2
+    
+        prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
+    
+        injections['redshift'] = z
+        injections['mass_1_source'] = m1
+    
+        if mass_ratio:
+            injections['mass_ratio'] = q
+            prior *= m1
+        else:
+            injections['mass_2_source'] = m2
+    
+        if chi_eff:
+            injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
+            prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
+            prior_iso_eff = chi_effective_prior_from_isotropic_spins(
+                injections['chi_eff'], q,
+            )
+            prior = prior * prior_iso_eff / prior_iso_spin
+        else:
+            injections['a_1'] = a1
+            injections['a_2'] = a2
+            injections['cos_tilt_1'] = c1
+            injections['cos_tilt_2'] = c2
+            prior *= (2 * np.pi) ** 2 # fixed population model in phi1, phi2
+    
+        injections['weight'] = 1 / prior
 
-    q = m2 / m1
-    a1 = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
-    a2 = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
-    c1 = s1z / a1
-    c2 = s2z / a2
-
-    prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
-
-    injections['redshift'] = z
-    injections['mass_1_source'] = m1
-
-    if mass_ratio:
-        injections['mass_ratio'] = q
-        prior *= m1
-    else:
-        injections['mass_2_source'] = m2
-
-    if chi_eff:
-        injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
-        prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
-        prior_iso_eff = chi_effective_prior_from_isotropic_spins(
-            injections['chi_eff'], q,
-        )
-        prior = prior * prior_iso_eff / prior_iso_spin
-    else:
-        injections['a_1'] = a1
-        injections['a_2'] = a2
-        injections['cos_tilt_1'] = c1
-        injections['cos_tilt_2'] = c2
-        prior *= (2 * np.pi) ** 2 # fixed population model in phi1, phi2
-
-    injections['weight'] = 1 / prior
-
-    injections = {key: np.array(injections[key]) for key in injections}
+        for key in extra_keys:
+            injections[key] = prior if key == 'prior' else d[key][found]
+    
+        injections = {key: np.array(injections[key]) for key in injections}
 
     return injections
