@@ -22,7 +22,7 @@ def ln_estimator_and_variance_from_ln(ln_weights, n, axis = -1):
 
 def estimator_and_variance_from_ln(ln_weights, n, axis = -1):
     ln_mean, variance = ln_estimator_and_variance_from_ln(ln_weights, n, axis = axis)
-    return jnp.exp(ln_mean), variance * jnp.exp(2 * ln_mean)
+    return jnp.exp(ln_mean), jnp.exp(jnp.log(variance) + 2 * ln_mean)
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
     num_obs, num_pe = posteriors['weight'].shape
@@ -79,11 +79,13 @@ def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
     ln_sums_sq = jnp.logaddexp.accumulate(2 * ln_weights)
     ln_sums = jax.nn.logsumexp(
         jnp.array([ln_sums[idxs[1:]], ln_sums[idxs[:-1]]]),
-        b = jnp.array([1, -1]),
+        b = jnp.array([1, -1])[:, None],
+        axis = 0,
     )
     ln_sums_sq = jax.nn.logsumexp(
         jnp.array([ln_sums_sq[idxs[1:]], ln_sums_sq[idxs[:-1]]]),
-        b = jnp.array([1, -1]),
+        b = jnp.array([1, -1])[:, None],
+        axis = 0,
     )
     ln_means = ln_sums - jnp.log(n)
     ess = jnp.exp(2 * ln_sums - ln_sums_sq)
@@ -92,7 +94,7 @@ def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
 
 def estimator_and_variance_stacked_from_ln(ln_weights, n):
     ln_means, variances = ln_estimator_and_variance_stacked_from_ln(ln_weights, n)
-    return jnp.exp(ln_means), variances * jnp.exp(2 * ln_means)
+    return jnp.exp(ln_means), jnp.exp(jnp.log(variances) + 2 * ln_means)
 
 def shape_likelihood_ingredients_stacked(
     posteriors, injections, density, parameters,
