@@ -33,7 +33,7 @@ def standard_prior(redshift):
     ).prob(redshift) * (1 + redshift) ** 2
 
 
-def get_events(catalog = 'gwtc4', min_ifar = 1, min_mass = 3):
+def get_events(catalog = 'gwtc4', bbh = True, min_ifar = 1):
     url = (
         'https://gwosc.org/eventapi/ascii/query/show?release='
         'GWTC-1-confident,GWTC-1-marginal,'
@@ -42,7 +42,7 @@ def get_events(catalog = 'gwtc4', min_ifar = 1, min_mass = 3):
     )
     if catalog == 'gwtc4':
         url += ',GWTC-4.0'
-    url += f'&min-mass-2-source={min_mass}&max-far={1 / min_ifar}'
+    url += f'&min-mass-2-source={3 if bbh else 0}&max-far={1 / min_ifar}'
     temp = f'./events-{time.time_ns()}.txt'
     os.system(f'wget -O {temp} "{url}"')
     events = sorted(str(event) for event in np.loadtxt(
@@ -58,7 +58,6 @@ def get_posteriors_stacked(
     exclude = [],
     bbh = True,
     min_ifar = 1,
-    min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
     chi_p = False,
@@ -88,7 +87,7 @@ def get_posteriors_stacked(
         ]
     exclude = sorted(set(exclude))
 
-    events = get_events(catalog, min_ifar, min_mass)
+    events = get_events(catalog, bbh, min_ifar)
 
     paths = [
         f'{path}/lvk-data/{gwtc}/PE'
@@ -265,7 +264,6 @@ def get_posteriors(
     exclude = [],
     bbh = True,
     min_ifar = 1,
-    min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
     chi_p = False,
@@ -295,7 +293,7 @@ def get_posteriors(
         ]
     exclude = sorted(set(exclude))
 
-    events = get_events(catalog, min_ifar, min_mass)
+    events = get_events(catalog, bbh, min_ifar)
 
     paths = [
         f'{path}/lvk-data/{gwtc}/PE'
