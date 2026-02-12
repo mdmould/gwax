@@ -557,7 +557,7 @@ def get_injections(
                     q, a1, a2, np.arccos(c1), np.arccos(c2),
                 )
                 prior_iso_eff = prior_chieff_chip_isotropic(
-                    injections['chi_eff,'], injections['chi_p'], q,
+                    injections['chi_eff'], injections['chi_p'], q,
                 )
             else:
                 prior_iso_eff = chi_effective_prior_from_isotropic_spins(
