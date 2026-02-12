@@ -2,8 +2,10 @@ from glob import glob
 import os
 
 import bilby
-from gwpopulation_pipe.analytic_spin_prior import \
-    chi_effective_prior_from_isotropic_spins
+from gwpopulation_pipe.analytic_spin_prior import (
+    chi_effective_prior_from_isotropic_spins,
+    prior_chieff_chip_isotropic,
+)
 import h5py
 import numpy as np
 from tqdm import tqdm
@@ -13,6 +15,12 @@ import wcosmo; wcosmo.disable_units()
 def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
     return \
         (a_1 * cos_tilt_1 + mass_ratio * a_2 * cos_tilt_2) / (1 + mass_ratio)
+
+def eval_chi_p(mass_ratio, a_1, a_2, tilt_1, tilt_2):
+    return np.maximum(
+        a_1 * np.sin(tilt_1),
+        a_2 * np.sin(tilt_2) * mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio),
+    )
 
 
 def standard_prior(redshift):
@@ -51,6 +59,7 @@ def get_posteriors_stacked(
     min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
+    chi_p = False,
     extra_keys = [],
     stack = True,
 ):
@@ -91,8 +100,11 @@ def get_posteriors_stacked(
         keys.append('mass_ratio')
     else:
         keys.append('mass_2_source')
-    if chi_eff:
+    if chi_eff or chi_p:
         keys.append('chi_eff')
+        if chi_p:
+            assert chi_eff
+            keys.append('chi_p')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
     keys = sorted(set(keys + list(extra_keys)))
@@ -154,6 +166,14 @@ def get_posteriors_stacked(
                         f[analysis]['costilt1'],
                         f[analysis]['costilt2'],
                     )
+                    if chi_p:
+                        posteriors[event][label]['chi_p'] = eval_chi_p(
+                            q,
+                            f[analysis]['spin1'],
+                            f[analysis]['spin2'],
+                            np.arccos(f[analysis]['costilt1']),
+                            np.arccos(f[analysis]['costilt2']),
+                        )
                 else:
                     posteriors[event][label]['a_1'] = f[analysis]['spin1']
                     posteriors[event][label]['a_2'] = f[analysis]['spin2']
@@ -198,9 +218,16 @@ def get_posteriors_stacked(
                         posteriors[event][analysis]['mass_2_source'] /
                         posteriors[event][analysis]['mass_1_source']
                     )
-                prior *= chi_effective_prior_from_isotropic_spins(
-                    posteriors[event][analysis]['chi_eff'], q,
-                )
+                if chi_p:
+                    prior *= prior_chieff_chip_isotropic(
+                        posteriors[event][analysis]['chi_eff'],
+                        posteriors[event][analysis]['chi_p'],
+                        q,
+                    )
+                else:
+                    prior *= chi_effective_prior_from_isotropic_spins(
+                        posteriors[event][analysis]['chi_eff'], q,
+                    )
 
             posteriors[event][analysis]['weight'] = 1 / prior
 
@@ -239,6 +266,7 @@ def get_posteriors(
     min_mass = 3,
     mass_ratio = False,
     chi_eff = False,
+    chi_p = False,
     extra_keys = [],
     downsample = True,
 ):
@@ -279,8 +307,11 @@ def get_posteriors(
         keys.append('mass_ratio')
     else:
         keys.append('mass_2_source')
-    if chi_eff:
+    if chi_eff or chi_p:
         keys.append('chi_eff')
+        if chi_p:
+            assert chi_eff
+            keys.append('chi_p')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
     keys = sorted(set(keys + list(extra_keys)))
@@ -333,13 +364,21 @@ def get_posteriors(
                     posteriors[event]['mass_2_source'] = m2
 
                 if chi_eff:
-                    posteriors[event]['chi_eff'] = eval_chi_eff(
+                    posteriors[event]['chi_eff'] = (
                         q,
                         f[analysis]['spin1'],
                         f[analysis]['spin2'],
                         f[analysis]['costilt1'],
                         f[analysis]['costilt2'],
                     )
+                    if chi_p:
+                        posteriors[event][label]['chi_p'] = eval_chi_p(
+                            q,
+                            f[analysis]['spin1'],
+                            f[analysis]['spin2'],
+                            np.arccos(f[analysis]['costilt1']),
+                            np.arccos(f[analysis]['costilt2']),
+                        )
                 else:
                     posteriors[event]['a_1'] = f[analysis]['spin1']
                     posteriors[event]['a_2'] = f[analysis]['spin2']
@@ -408,9 +447,16 @@ def get_posteriors(
                     posteriors[event]['mass_2_source'] /
                     posteriors[event]['mass_1_source']
                 )
-            prior *= chi_effective_prior_from_isotropic_spins(
-                posteriors[event]['chi_eff'], q,
-            )
+            if chi_p:
+                prior *= prior_chieff_chip_isotropic(
+                    posteriors[event][analysis]['chi_eff'],
+                    posteriors[event][analysis]['chi_p'],
+                    q,
+                )
+            else:
+                prior *= chi_effective_prior_from_isotropic_spins(
+                    posteriors[event][analysis]['chi_eff'], q,
+                )
         posteriors[event]['weight'] = 1 / prior
 
     if downsample is not False:
@@ -442,6 +488,7 @@ def get_injections(
     min_snr = 10,
     mass_ratio = False,
     chi_eff = False,
+    chi_p = False,
     extra_keys = [],
 ):
     if catalog == 'gwtc3':
@@ -502,12 +549,21 @@ def get_injections(
         else:
             injections['mass_2_source'] = m2
     
-        if chi_eff:
+        if chi_eff or 'chi_p':
             injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
+            if chi_p:
+                assert chi_eff
+                injections['chi_p'] = eval_chi_p(
+                    q, a1, a2, np.arccos(c1), np.arccos(c2),
+                )
+                prior_iso_eff = prior_chieff_chip_isotropic(
+                    injections['chi_eff,'], injections['chi_p'], q,
+                )
+            else:
+                prior_iso_eff = chi_effective_prior_from_isotropic_spins(
+                    injections['chi_eff'], q,
+                )
             prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
-            prior_iso_eff = chi_effective_prior_from_isotropic_spins(
-                injections['chi_eff'], q,
-            )
             prior = prior * prior_iso_eff / prior_iso_spin
         else:
             injections['a_1'] = a1
