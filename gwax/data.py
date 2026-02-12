@@ -549,7 +549,7 @@ def get_injections(
         else:
             injections['mass_2_source'] = m2
     
-        if chi_eff or chi_p
+        if chi_eff or chi_p:
             injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
             if chi_p:
                 assert chi_eff
