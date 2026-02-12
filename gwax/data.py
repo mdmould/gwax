@@ -533,24 +533,24 @@ def get_injections(
         s2x = d['spin2x'][found]
         s2y = d['spin2y'][found]
         s2z = d['spin2z'][found]
-    
+
         q = m2 / m1
         a1 = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
         a2 = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
         c1 = s1z / a1
         c2 = s2z / a2
-    
+
         prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
-    
+
         injections['redshift'] = z
         injections['mass_1_source'] = m1
-    
+
         if mass_ratio:
             injections['mass_ratio'] = q
             prior *= m1
         else:
             injections['mass_2_source'] = m2
-    
+
         if chi_eff or chi_p:
             injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
             if chi_p:
@@ -573,12 +573,12 @@ def get_injections(
             injections['cos_tilt_1'] = c1
             injections['cos_tilt_2'] = c2
             prior *= (2 * np.pi) ** 2 # fixed population model in phi1, phi2
-    
+
         injections['weight'] = 1 / prior
 
         for key in sorted(set(extra_keys)):
             injections[key] = prior if key == 'prior' else d[key][found]
-    
+
         injections = {key: np.array(injections[key]) for key in injections}
 
     return injections
