@@ -1,5 +1,6 @@
 from glob import glob
 import os
+import time
 
 import bilby
 from gwpopulation_pipe.analytic_spin_prior import (
@@ -43,10 +44,11 @@ def get_events(catalog = 'gwtc4', min_ifar = 1, min_mass = 3):
         url += ',GWTC-4.0'
     url += f'&min-mass-2-source={min_mass}&max-far={1 / min_ifar}'
     os.system(f'wget -O ./events.txt "{url}"')
+    temp = f'./events-{time.time_ns()}.txt'
     events = sorted(str(event) for event in np.loadtxt(
-        './events.txt', dtype = str, skiprows = 1, usecols = 1,
+        temp, dtype = str, skiprows = 1, usecols = 1,
     ))
-    os.system('rm ./events.txt')
+    os.system(f'rm {temp}')
     return events
 
 
