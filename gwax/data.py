@@ -12,6 +12,8 @@ import numpy as np
 import tqdm
 import wcosmo; wcosmo.disable_units()
 
+from gwax.cosmology import source_to_detector
+
 
 def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
     url = 'https://gwosc.org/eventapi/ascii/query/show?release='
@@ -29,7 +31,7 @@ def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
     events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
     os.system(f'rm {temp}')
     events = sorted(map(str, np.unique(events)))
-    if not er:
+    if not er and not bbh:
         events.remove('GW230518_125908')
     return events
 
@@ -128,23 +130,22 @@ def get_event(path, event, keys):
     data['file'] = file
     return data
 
-def get_events(path, events, keys):
-    data = {}
-    for event in tqdm.tqdm(events):
-        data[event] = get_event(path, event, keys)
-    return data
 
-
-def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
-    a_1z = a_1 * cos_tilt_1
-    a_2z = a_2 * cos_tilt_2
-    return (a_1z + mass_ratio * a_2z) / (1 + mass_ratio)
-
-def eval_chi_p(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
-    a_1p = a_1 * np.sin(np.arccos(cos_tilt_1))
-    a_2p = a_2 * np.sin(np.arccos(cos_tilt_2))
-    coeff = mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio)
-    return np.maximum(a_1p, a_2p * coeff)
+def downsample_posterior(posterior, total):
+    analyses = sorted(set(posterior) - {'catalog', 'file'})
+    keys = list(posterior[analyses[0]].keys())
+    new_posterior = {key: [] for key in keys}
+    num_samples = int(np.ceil(total / len(analyses)))
+    for analysis in analyses:
+        total_analysis = posterior[analysis][keys[0]].size
+        idx = np.random.choice(total_analysis, num_samples, replace = False)
+        for key in keys:
+            new_posterior[key] = np.concatenate(
+                [new_posterior[key], posterior[analysis][key][idx]],
+            )
+    for key in keys:
+        new_posterior[key] = new_posterior[key][:total]
+    return new_posterior
 
 
 def prior_euclidean(luminosity_distance):
@@ -158,6 +159,51 @@ def prior_comoving_source(luminosity_distance, H0, Om0):
     dv_dz = wcosmo.differential_comoving_volume(redshift, H0, Om0)
     return dv_dz / (1 + redshift) / dd_dz
 
+def compute_initial_prior(data, catalog):
+    H0 = 67.9
+    Om0 = 0.3065
+    if catalog == 'GWTC-4':
+        return prior_comoving_source(data['luminosity_distance'], H0, Om0)
+    else:
+        return prior_euclidean(data['luminosity_distance'])
+
+
+def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
+    a_1z = a_1 * cos_tilt_1
+    a_2z = a_2 * cos_tilt_2
+    return (a_1z + mass_ratio * a_2z) / (1 + mass_ratio)
+
+def eval_chi_p(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
+    a_1p = a_1 * np.sin(np.arccos(cos_tilt_1))
+    a_2p = a_2 * np.sin(np.arccos(cos_tilt_2))
+    coeff = mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio)
+    return np.maximum(a_1p, a_2p * coeff)
+
+def convert_effective_spin_posterior(data, chi_eff, chi_p):
+    if chi_eff or chi_p:
+        mass_ratio = data['mass_2'] / data['mass_1']
+        a_1 = data.pop('a_1')
+        a_2 = data.pop('a_2')
+        cos_tilt_1 = data.pop('cos_tilt_1')
+        cos_tilt_2 = data.pop('cos_tilt_2')
+        new_posteriors['chi_eff'] = eval_chi_eff(
+            mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
+        )
+        if chi_p:
+            assert chi_eff
+            data['chi_p'] = eval_chi_p(
+                mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
+            )
+            data['weight'] /= prior_chieff_chip_isotropic(
+                data['chi_eff'],
+                data['chi_p'],
+                mass_ratio,
+            )
+        else:
+            data['weight'] /= chi_effective_prior_from_isotropic_spins(
+                data['chi_eff'], mass_ratio,
+            )
+    return data
 
 def get_posteriors(
     path,
@@ -166,11 +212,10 @@ def get_posteriors(
     bbh = True,
     er = False,
     exclude = [],
-    source = True,
-    mass_ratio = False,
+    # mass_ratio = False,
     chi_eff = False,
     chi_p = False,
-    extra_keys = [],
+    # extra_keys = [],
     downsample = False,
     stack = True,
 ):
@@ -191,11 +236,89 @@ def get_posteriors(
         if event in exclude:
             print(f'excluding {event}: in exclude list')
             continue
-        posteriors[event] = get_event(path, event, keys)
+        try:
+            posteriors[event] = get_event(path, event, keys)
+        except:
+            exclude.append(event)
+            print(f'Could not get sample for {event}, excluding...')
 
+    events = list(posteriors)
+    exclude = sorted(set(exclude))
 
+    if downsample:
+        total = np.inf
+        for event in posteriors:
+            analyses = set(posteriors[event]) - {'catalog', 'file'}
+            min_samples = np.inf
+            for analysis in analyses:
+                num_samples = posteriors[event][analysis]['a_1'].size
+                min_samples = min(min_samples, num_samples)
+            total = min(total, min_samples * len(analyses))
 
-    return
+        new_posteriors = {key: [] for key in keys}
+        for event in posteriors:
+            new_posterior = downsample_posterior(posteriors[event], total)
+            for key in keys:
+                new_posteriors[key].append(new_posterior[key])
+        new_posteriors['total'] = total
+        new_posteriors = {
+            key: np.array(new_posteriors[key]) for key in new_posteriors
+        }
+
+        priors = []
+        for event, luminosity_distance in zip(
+            events, new_posteriors['luminosity_distance'],
+        ):
+            prior = compute_initial_prior(
+                dict(luminosity_distance = luminosity_distance),
+                posteriors[event]['catalog'],
+            )
+            priors.append(prior)
+        new_posteriors['weight'] = 1 / np.array(priors)
+
+        new_posteriors = convert_effective_spin_posterior(
+            new_posteriors, chi_eff, chi_p,
+        )
+
+        new_posteriors['weight'] /= np.sum(
+            new_posteriors['weight'], axis = 1, keepdims = True,
+        )
+
+        return new_posteriors, events, exclude
+
+    for event in posteriors:
+        analyses = set(posteriors[event]) - {'catalog', 'file'}
+        for analysis in analyses:
+            prior = compute_initial_prior(
+                posteriors[event][analysis], posteriors[event]['catalog'],
+            )
+            posteriors[event][analysis]['weight'] = 1 / prior / prior.size
+            posteriors[event][analysis] = convert_effective_spin_posterior(
+                posteriors[event][analysis], chi_eff, chi_p,
+            )
+
+    if stack:
+        new_posteriors = {key: [] for key in keys + ['weight', 'total']}
+        for event in posteriors:
+            analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
+            for analysis in analyses:
+                for key in keys:
+                    new_posteriors[key] = np.concatenate([
+                        new_posteriors[key], posteriors[event][analysis][key],
+                    ])
+            weight = np.concatenate([
+                posteriors[event][analysis]['weight'] for analysis in analyses
+            ])
+            weight /= weight.sum()
+            new_posteriors['weight'] = np.concatenate(
+                [new_posteriors['weight'], weight],
+            )
+            new_posteriors['total'].append(weight.size)
+        new_posteriors['total'] = np.array(new_posteriors['total'])
+
+        return new_posteriors, events, exclude
+
+    return posteriors, events, exclude
 
 
 def get_injections(
@@ -203,11 +326,8 @@ def get_injections(
     catalog = 'GWTC-4',
     min_ifar = 1,
     min_snr = 10,
-    source = True,
-    mass_ratio = False,
     chi_eff = False,
     chi_p = False,
-    extra_keys = [],
 ):
     file = f'{path}/lvk-data/GWTC-4/VT/mixture-semi_o1_o2-real_o3'
     if catalog == 'GWTC-3':
@@ -252,22 +372,17 @@ def get_injections(
 
         prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
 
-        injections['redshift'] = z
-        injections['mass_1_source'] = m1
-
-        if mass_ratio:
-            injections['mass_ratio'] = q
-            prior *= m1
-        else:
-            injections['mass_2_source'] = m2
+        m1z, m2z, dl, jac = source_to_detector(m1, m2, z, 67.9, 0.3065)
+        injections['luminosity_distance'] = dl
+        injections['mass_1'] = m1z
+        injections['mass_2'] = m2z
+        prior *= jac
 
         if chi_eff or chi_p:
             injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
             if chi_p:
                 assert chi_eff
-                injections['chi_p'] = eval_chi_p(
-                    q, a1, a2, np.arccos(c1), np.arccos(c2),
-                )
+                injections['chi_p'] = eval_chi_p(q, a1, a2, c1, c2)
                 prior_iso_eff = prior_chieff_chip_isotropic(
                     injections['chi_eff'], injections['chi_p'], q,
                 )
@@ -286,9 +401,6 @@ def get_injections(
 
         injections['weight'] = 1 / prior
 
-        for key in sorted(set(extra_keys)):
-            injections[key] = prior if key == 'prior' else d[key][found]
-
-        injections = {key: np.array(injections[key]) for key in injections}
+    injections = {key: np.array(injections[key]) for key in injections}
 
     return injections

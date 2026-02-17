@@ -21,7 +21,9 @@ def ln_estimator_and_variance_from_ln(ln_weights, n, axis = -1):
     return ln_mean, variance
 
 def estimator_and_variance_from_ln(ln_weights, n, axis = -1):
-    ln_mean, variance = ln_estimator_and_variance_from_ln(ln_weights, n, axis = axis)
+    ln_mean, variance = ln_estimator_and_variance_from_ln(
+        ln_weights, n, axis = axis,
+    )
     return jnp.exp(ln_mean), jnp.exp(jnp.log(variance) + 2 * ln_mean)
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):

@@ -22,6 +22,32 @@ def source_to_detector(mass_1_source, mass_2_source, redshift, H0, Om0):
     jacobian = detector_to_source_jacobian(redshift, H0, Om0)
     return mass_1, mass_2, luminosity_distance, 1 / jacobian
 
+def data_to_source(data, H0, Om0):
+    mass_1_source, mass_2_source, redshift, jacobian = detector_to_source(
+        data['mass_1'], data['mass_2'], data['luminosity_distance'], H0, Om0,
+    )
+    data['mass_1_source'] = mass_1_source
+    data['mass_2_source'] = mass_2_source
+    data['redshift'] = redshift
+    data['weight'] /= jacobian
+    data.pop('mass_1')
+    data.pop('mass_2')
+    data.pop('luminosity_distance')
+    return data
+
+def data_to_detector(data, H0, Om0):
+    mass_1, mass_2, luminosity_distance, jacobian = source_to_detector(
+        data['mass_1_source'], data['mass_2_source'], data['reshuft'], H0, Om0,
+    )
+    data['mass_1'] = mass_1
+    data['mass_2'] = mass_2
+    data['luminosity_distance'] = luminosity_distance
+    data['weight'] /= jacobian
+    data.pop('mass_1_source')
+    data.pop('mass_2_source')
+    data.pop('redshift')
+    return data
+
 def comoving_to_detector(redshift, H0, Om0):
     return (
         wcosmo.differential_comoving_volume(redshift, H0, Om0)
@@ -30,6 +56,6 @@ def comoving_to_detector(redshift, H0, Om0):
 
 def comoving_to_detector_lal(redshift):
     cosmo = bilby.gw.cosmology.get_cosmology('Planck15_LAL')
-    H0 = float(cosmo.H0.value)
-    Om0 = float(cosmo.Om0)
+    H0 = float(cosmo.H0.value) # 67.9
+    Om0 = float(cosmo.Om0) # 0.3065
     return comoving_to_detector(redshift, Om0, H0)
