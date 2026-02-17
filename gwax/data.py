@@ -203,10 +203,8 @@ def get_posteriors(
     bbh = True,
     er = False,
     exclude = [],
-    # mass_ratio = False,
     chi_eff = False,
     chi_p = False,
-    # extra_keys = [],
     downsample = False,
     stack = True,
 ):
