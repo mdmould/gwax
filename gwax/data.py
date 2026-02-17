@@ -123,7 +123,6 @@ def get_event(path, event, keys):
                 data[analysis] = {key: samples[key] for key in keys}
     return data
 
-
 def downsample_posterior(posterior, total):
     analyses = sorted(set(posterior) - {'catalog', 'file'})
     keys = list(posterior[analyses[0]].keys())
@@ -188,9 +187,7 @@ def convert_effective_spin_posterior(data, chi_eff, chi_p):
                 mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
             )
             data['weight'] /= prior_chieff_chip_isotropic(
-                data['chi_eff'],
-                data['chi_p'],
-                mass_ratio,
+                data['chi_eff'], data['chi_p'], mass_ratio,
             )
         else:
             data['weight'] /= chi_effective_prior_from_isotropic_spins(
