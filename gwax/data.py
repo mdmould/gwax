@@ -179,7 +179,7 @@ def convert_effective_spin_posterior(data, chi_eff, chi_p):
         a_2 = data.pop('a_2')
         cos_tilt_1 = data.pop('cos_tilt_1')
         cos_tilt_2 = data.pop('cos_tilt_2')
-        new_posteriors['chi_eff'] = eval_chi_eff(
+        data['chi_eff'] = eval_chi_eff(
             mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
         )
         if chi_p:
@@ -291,28 +291,35 @@ def get_posteriors(
                 posteriors[event][analysis], chi_eff, chi_p,
             )
 
-    if stack:
-        new_posteriors = {key: [] for key in keys + ['weight', 'total']}
-        for event in posteriors:
-            analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
-            for analysis in analyses:
-                for key in keys:
-                    new_posteriors[key] = np.concatenate([
-                        new_posteriors[key], posteriors[event][analysis][key],
-                    ])
-            weight = np.concatenate([
-                posteriors[event][analysis]['weight'] for analysis in analyses
-            ])
-            weight /= weight.sum()
-            new_posteriors['weight'] = np.concatenate(
-                [new_posteriors['weight'], weight],
-            )
-            new_posteriors['total'].append(weight.size)
-        new_posteriors['total'] = np.array(new_posteriors['total'])
+    if not stack:
+        return posteriors, events, exclude
 
-        return new_posteriors, events, exclude
+    keys = ['luminosity_distance', 'mass_1', 'mass_2']
+    if chi_eff:
+        keys.append('chi_eff')
+        if chi_p:
+            keys.append('chi_p')
+    else:
+        keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+    new_posteriors = {key: [] for key in keys + ['weight', 'total']}
+    for event in posteriors:
+        analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
+        for analysis in analyses:
+            for key in keys:
+                new_posteriors[key] = np.concatenate([
+                    new_posteriors[key], posteriors[event][analysis][key],
+                ])
+        weight = np.concatenate([
+            posteriors[event][analysis]['weight'] for analysis in analyses
+        ])
+        weight /= weight.sum()
+        new_posteriors['weight'] = np.concatenate(
+            [new_posteriors['weight'], weight],
+        )
+        new_posteriors['total'].append(weight.size)
+    new_posteriors['total'] = np.array(new_posteriors['total'])
 
-    return posteriors, events, exclude
+    return new_posteriors, events, exclude
 
 
 def get_injections(
