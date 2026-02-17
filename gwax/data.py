@@ -9,499 +9,211 @@ from gwpopulation_pipe.analytic_spin_prior import (
 )
 import h5py
 import numpy as np
-from tqdm import tqdm
+import tqdm
 import wcosmo; wcosmo.disable_units()
 
 
-def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
-    return \
-        (a_1 * cos_tilt_1 + mass_ratio * a_2 * cos_tilt_2) / (1 + mass_ratio)
-
-def eval_chi_p(mass_ratio, a_1, a_2, tilt_1, tilt_2):
-    return np.maximum(
-        a_1 * np.sin(tilt_1),
-        a_2 * np.sin(tilt_2) * mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio),
+def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
+    url = 'https://gwosc.org/eventapi/ascii/query/show?release='
+    url += ','.join(
+        [
+            'GWTC-1-confident,GWTC-1-marginal',
+            'GWTC-2.1-confident,GWTC-2.1-marginal',
+            'GWTC-3-confident,GWTC-3-marginal',
+            'GWTC-4.0',
+        ][:int(catalog.split('-')[1][0])]
     )
-
-
-def standard_prior(redshift):
-    return bilby.gw.prior.UniformSourceFrame(
-        minimum = np.min(redshift),
-        maximum = np.max(redshift),
-        cosmology = 'Planck15_LAL',
-        name = 'redshift',
-    ).prob(redshift) * (1 + redshift) ** 2
-
-
-def get_events(catalog = 'gwtc4', bbh = True, min_ifar = 1):
-    url = (
-        'https://gwosc.org/eventapi/ascii/query/show?release='
-        'GWTC-1-confident,GWTC-1-marginal,'
-        'GWTC-2.1-confident,GWTC-2.1-marginal,'
-        'GWTC-3-confident,GWTC-3-marginal'
-    )
-    if catalog == 'gwtc4':
-        url += ',GWTC-4.0'
     url += f'&min-mass-2-source={3 if bbh else 0}&max-far={1 / min_ifar}'
     temp = f'./events-{time.time_ns()}.txt'
     os.system(f'wget -O {temp} "{url}"')
-    events = sorted(str(event) for event in np.loadtxt(
-        temp, dtype = str, skiprows = 1, usecols = 1,
-    ))
+    events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
     os.system(f'rm {temp}')
+    events = sorted(map(str, np.unique(events)))
+    if not er:
+        events.remove('GW230518_125908')
     return events
 
+def get_event_file(path, catalog, event):
+    if catalog == 'GWTC-2':
+        files = glob(f'{path}/lvk-data/{catalog}/PE/{event}.h5')
+    elif catalog in ['GWTC-2.1', 'GWTC-3']:
+        files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*_nocosmo.h5')
+    else: # GWTC-1, GWTC-4s
+        files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*.hdf5')
+    if event == 'GW190521':
+        files = [file for file in files if 'GW190521_074359' not in file]
+    assert len(files) == 1
+    return files[0]
 
-def get_posteriors_stacked(
-    path,
-    catalog = 'gwtc4',
-    exclude = [],
-    bbh = True,
-    min_ifar = 1,
-    mass_ratio = False,
-    chi_eff = False,
-    chi_p = False,
-    extra_keys = [],
-    stack = True,
-):
-    catalog = catalog.lower()
-    assert catalog in ('gwtc3', 'gwtc4')
-
-    exclude += [
-    #     'GW190426_152155', # FAR?
-    #     'GW190531_023648', # FAR?
-        'GW230518_125908', # NSBH ER
-    #     'GW230630_070659', # DQ
-    #     'GW231002_143916', # FAR=1
-    #     'GW240422_213513', # FAR?
-    ]
-    if bbh:
-        exclude += [
-            'GW170817', # _124104', # BNS
-            'GW190425', # _081805', # BNS? NSBH?
-            'GW190814', # _211039', # NSBH?
-            'GW190917_114630', # NSBH?
-            'GW200105_162426', # NSBH FAR?
-            'GW200115_042309', # NSBH
-            'GW230529_181500', # NSBH
-        ]
-    exclude = sorted(set(exclude))
-
-    events = get_events(catalog, bbh, min_ifar)
-
-    paths = [
-        f'{path}/lvk-data/{gwtc}/PE'
-        for gwtc in ('GWTC-1', 'GWTC-2', 'GWTC-2.1', 'GWTC-3')
-    ]
-    if catalog == 'gwtc4':
-        paths.append(f'{path}/lvk-data/GWTC-4/PE')
-
-    keys = ['redshift', 'mass_1_source']
-    if mass_ratio:
-        keys.append('mass_ratio')
-    else:
-        keys.append('mass_2_source')
-    if chi_eff or chi_p:
-        keys.append('chi_eff')
-        if chi_p:
-            assert chi_eff
-            keys.append('chi_p')
-    else:
-        keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
-    keys = sorted(set(keys + list(extra_keys)))
-
-    posteriors = {}
-
-    for event in tqdm(events):
-        if event == 'GW190521': # event with repeated date without time code
-            event = 'GW190521_030229'
-
-        if any(event in excluded for excluded in exclude):
-            print(f'excluding {event}: in exclude list')
-            continue
-
-        files = sorted(
-            file for path in paths for file in glob(f'{path}/*{event}*')
-        )
-        if len(files) == 0:
-            exclude.append(event)
-            print(f'excluding {event}: no file found')
-            continue
-        file = files[0]
-
-        posteriors[event] = {}
-
-        with h5py.File(file, 'r') as f:
-
-            if event == 'GW170817':
-                analysis = 'IMRPhenomPv2NRT_highSpin_posterior'
-                label = 'IMRPhenomPv2NRT_highSpin'
-
-                cosmo = bilby.gw.cosmology.get_cosmology('Planck15_LAL')
-                cosmo = wcosmo.FlatLambdaCDM(
-                    H0 = cosmo.H0.value, Om0 = cosmo.Om0,
-                )
-
-                d = f[analysis]['luminosity_distance_Mpc']
-                z = wcosmo.z_at_value(cosmo.luminosity_distance, d)
-
-                m1 = f[analysis]['m1_detector_frame_Msun'] / (1 + z)
-                m2 = f[analysis]['m2_detector_frame_Msun'] / (1 + z)
-                q = m2 / m1
-
-                posteriors[event][label] = dict(
-                    redshift = z,
-                    mass_1_source = m1,
-                )
-
-                if mass_ratio:
-                    posteriors[event][label]['mass_ratio'] = q
-                else:
-                    posteriors[event][label]['mass_2_source'] = m2
-
-                if chi_eff:
-                    posteriors[event][label]['chi_eff'] = eval_chi_eff(
-                        q,
-                        f[analysis]['spin1'],
-                        f[analysis]['spin2'],
-                        f[analysis]['costilt1'],
-                        f[analysis]['costilt2'],
-                    )
-                    if chi_p:
-                        posteriors[event][label]['chi_p'] = eval_chi_p(
-                            q,
-                            f[analysis]['spin1'],
-                            f[analysis]['spin2'],
-                            np.arccos(f[analysis]['costilt1']),
-                            np.arccos(f[analysis]['costilt2']),
-                        )
-                else:
-                    posteriors[event][label]['a_1'] = f[analysis]['spin1']
-                    posteriors[event][label]['a_2'] = f[analysis]['spin2']
-                    posteriors[event][label]['cos_tilt_1'] = \
-                        f[analysis]['costilt1']
-                    posteriors[event][label]['cos_tilt_2'] = \
-                        f[analysis]['costilt2']
-
+def get_event_catalog_and_file(path, event):
+    files = {}
+    for catalog in 'GWTC-1', 'GWTC-2', 'GWTC-2.1', 'GWTC-3', 'GWTC-4':
+        try:
+            files[catalog] = get_event_file(path, catalog, event)
+        except:
+            pass
+    if 'GWTC-1' in files and 'GWTC-2.1' in files:
+        catalog = 'GWTC-2.1'
+    elif 'GWTC-2' in files and 'GWTC-2.1' in files:
+        with h5py.File(files['GWTC-2']) as f:
+            if 'C01:NRSur7dq4' in f:
+                catalog = 'GWTC-2'
             else:
-                if event == 'GW190425':
-                    analyses = 'C01:IMRPhenomPv2_NRTidal:HighSpin',
-                elif event == 'GW230529_181500':
-                    analyses = 'C00:Mixed:HighSpin',
-                else:
-                    if any('NRSur' in analysis for analysis in f):
-                        analyses = 'NRSur',
-                    else:
-                        analyses = 'EOBNR', 'PhenomXPHM'
+                catalog = 'GWTC-2.1'
+    else:
+        assert len(files) == 1
+        catalog = list(files)[0]
+    return catalog, files[catalog]
 
-                analyses = [
-                    analysis for analysis in f
-                    if any(waveform in analysis for waveform in analyses)
-                ]
+def waveform_priority(event, catalog, analyses):
+    event_specific = dict(
+        GW170817 = ['IMRPhenomPv2NRT_highSpin_posterior'],
+        GW190425 = ['C01:IMRPhenomPv2_NRTidal:HighSpin'],
+        GW191219_163120 = ['C01:IMRPhenomXPHM:HighSpin', 'C01:SEOBNRv4PHM'],
+        GW200115_042309 = ['C01:IMRPhenomXPHM:HighSpin', 'C01:SEOBNRv4PHM'],
+        GW230518_125908 = ['C00:IMRPhenomXPHM-SpinTaylor'],
+        GW230529_181500 = [
+            'C00:IMRPhenomXPHM:HighSpin', 'C00:SEOBNRv5PHM:HighSpin',
+        ],
+    )
+    if event in event_specific:
+        return event_specific[event]
+    elif catalog == 'GWTC-1':
+        return ['IMRPhenomPv2_posterior', 'SEOBNRv3_posterior']
+    elif catalog == 'GWTC-2':
+        return ['C01:NRSur7dq4']
+    elif catalog == 'GWTC-2.1':
+        if 'C01:SEOBNRv4PHM' in analyses:
+            return ['C01:IMRPhenomXPHM', 'C01:SEOBNRv4PHM']
+        else:
+            return ['C01:IMRPhenomXPHM']
+    elif catalog == 'GWTC-3':
+        return ['C01:IMRPhenomXPHM', 'C01:SEOBNRv4PHM']
+    elif catalog == 'GWTC-4':
+        if 'C00:NRSur7dq4' in analyses:
+            return ['C00:NRSur7dq4']
+        else:
+            return ['C00:IMRPhenomXPHM-SpinTaylor', 'C00:SEOBNRv5PHM']
 
-                for analysis in analyses:
-                    posteriors[event][analysis] = {
-                        key: f[analysis]['posterior_samples'][key][()]
-                        for key in keys
-                    }
+def get_event_samples(file, analyses, keys):
+    swap = dict(
+        a_1 = 'spin1',
+        a_2 = 'spin2',
+        cos_tilt_1 = 'costilt1',
+        cos_tilt_2 = 'costilt2',
+        mass_1 = 'm1_detector_frame_Msun',
+        mass_2 = 'm2_detector_frame_Msun',
+        luminosity_distance = 'luminosity_distance_Mpc',
+        cos_theta_jn = 'costheta_jn',
+        ra = 'right_ascension',
+        dec = 'declination',
+    )
+    samples = {}
+    with h5py.File(file) as f:
+        for analysis in analyses:
+            if 'GWTC-1' in file:
+                data = f[analysis]
+                samples[analysis] = {key: data[swap[key]] for key in keys}
+            else:
+                data = f[analysis]['posterior_samples']
+                samples[analysis] = {key: data[key] for key in keys}
+    return samples
 
-        norm = 0
+def get_event(path, event, keys):
+    catalog, file = get_event_catalog_and_file(path, event)
+    with h5py.File(file) as f:
+        analyses = waveform_priority(event, catalog, f)
+    data = get_event_samples(file, analyses, keys)
+    data['catalog'] = catalog
+    data['file'] = file
+    return data
 
-        for analysis in posteriors[event]:
-            prior = standard_prior(posteriors[event][analysis]['redshift'])
-            if mass_ratio:
-                prior *= posteriors[event][analysis]['mass_1_source']
-            if chi_eff:
-                if mass_ratio:
-                    q = posteriors[event][analysis]['mass_ratio']
-                else:
-                    q = (
-                        posteriors[event][analysis]['mass_2_source'] /
-                        posteriors[event][analysis]['mass_1_source']
-                    )
-                if chi_p:
-                    prior *= prior_chieff_chip_isotropic(
-                        posteriors[event][analysis]['chi_eff'],
-                        posteriors[event][analysis]['chi_p'],
-                        q,
-                    )
-                else:
-                    prior *= chi_effective_prior_from_isotropic_spins(
-                        posteriors[event][analysis]['chi_eff'], q,
-                    )
+def get_events(path, events, keys):
+    data = {}
+    for event in tqdm.tqdm(events):
+        data[event] = get_event(path, event, keys)
+    return data
 
-            posteriors[event][analysis]['weight'] = 1 / prior
 
-            posteriors[event][analysis]['weight'] /= prior.size
-            norm += posteriors[event][analysis]['weight'].sum()
+def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
+    a_1z = a_1 * cos_tilt_1
+    a_2z = a_2 * cos_tilt_2
+    return (a_1z + mass_ratio * a_2z) / (1 + mass_ratio)
 
-        for analysis in posteriors[event]:
-            posteriors[event][analysis]['weight'] /= norm
+def eval_chi_p(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
+    a_1p = a_1 * np.sin(np.arccos(cos_tilt_1))
+    a_2p = a_2 * np.sin(np.arccos(cos_tilt_2))
+    coeff = mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio)
+    return np.maximum(a_1p, a_2p * coeff)
 
-    events = list(posteriors)
 
-    if not stack:
-        return posteriors, events, sorted(set(exclude))
+def prior_euclidean(luminosity_distance):
+    return luminosity_distance ** 2
 
-    posteriors_stacked = {key: [] for key in keys + ['weight', 'total']}
-    for event in posteriors:
-        total = 0
-        for analysis in posteriors[event]:
-            total += posteriors[event][analysis]['weight'].size
-            for key in posteriors[event][analysis]:
-                posteriors_stacked[key] = np.concatenate([
-                    posteriors_stacked[key], posteriors[event][analysis][key],
-                ])
-        posteriors_stacked['total'].append(total)
-    posteriors_stacked['total'] = np.array(posteriors_stacked['total'])
-
-    return posteriors_stacked, events, sorted(set(exclude))
+def prior_comoving_source(luminosity_distance, H0, Om0):
+    redshift = wcosmo.z_at_value(
+        wcosmo.luminosity_distance, luminosity_distance, H0 = H0, Om0 = Om0,
+    )
+    dd_dz = wcosmo.dDLdz(redshift, H0, Om0)
+    dv_dz = wcosmo.differential_comoving_volume(redshift, H0, Om0)
+    return dv_dz / (1 + redshift) / dd_dz
 
 
 def get_posteriors(
     path,
-    catalog = 'gwtc4',
-    exclude = [],
-    bbh = True,
+    catalog = 'GWTC-4',
     min_ifar = 1,
+    bbh = True,
+    er = False,
+    exclude = [],
+    source = True,
     mass_ratio = False,
     chi_eff = False,
     chi_p = False,
     extra_keys = [],
-    downsample = True,
+    downsample = False,
+    stack = True,
 ):
-    catalog = catalog.lower()
-    assert catalog in ('gwtc3', 'gwtc4')
-
-    exclude += [
-    #     'GW190426_152155', # FAR?
-    #     'GW190531_023648', # FAR?
-        'GW230518_125908', # NSBH ER
-    #     'GW230630_070659', # DQ
-    #     'GW231002_143916', # FAR=1
-    #     'GW240422_213513', # FAR?
-    ]
-    if bbh:
-        exclude += [
-            'GW170817', # _124104', # BNS
-            'GW190425', # _081805', # BNS? NSBH?
-            'GW190814', # _211039', # NSBH?
-            'GW190917_114630', # NSBH?
-            'GW200105_162426', # NSBH FAR?
-            'GW200115_042309', # NSBH
-            'GW230529_181500', # NSBH
-        ]
     exclude = sorted(set(exclude))
+    events = get_events_list(catalog, min_ifar, bbh, er)
 
-    events = get_events(catalog, bbh, min_ifar)
-
-    paths = [
-        f'{path}/lvk-data/{gwtc}/PE'
-        for gwtc in ('GWTC-1', 'GWTC-2', 'GWTC-2.1', 'GWTC-3')
+    keys = [
+        'luminosity_distance',
+        'mass_1',
+        'mass_2',
+        'a_1',
+        'a_2',
+        'cos_tilt_1',
+        'cos_tilt_2',
     ]
-    if catalog == 'gwtc4':
-        paths.append(f'{path}/lvk-data/GWTC-4/PE')
-
-    keys = ['redshift', 'mass_1_source']
-    if mass_ratio:
-        keys.append('mass_ratio')
-    else:
-        keys.append('mass_2_source')
-    if chi_eff or chi_p:
-        keys.append('chi_eff')
-        if chi_p:
-            assert chi_eff
-            keys.append('chi_p')
-    else:
-        keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
-    keys = sorted(set(keys + list(extra_keys)))
-
     posteriors = {}
-
-    for event in tqdm(events):
-        if event == 'GW190521': # event with repeated date without time code
-            event = 'GW190521_030229'
-
-        if any(event in excluded for excluded in exclude):
+    for event in tqdm.tqdm(events):
+        if event in exclude:
             print(f'excluding {event}: in exclude list')
             continue
+        posteriors[event] = get_event(path, event, keys)
 
-        files = sorted(
-            file for path in paths for file in glob(f'{path}/*{event}*')
-        )
-        if len(files) == 0:
-            exclude.append(event)
-            print(f'excluding {event}: no file found')
-            continue
-        file = files[0]
 
-        with h5py.File(file, 'r') as f:
 
-            if event == 'GW170817':
-                analysis = 'IMRPhenomPv2NRT_highSpin_posterior'
-
-                cosmo = bilby.gw.cosmology.get_cosmology('Planck15_LAL')
-                cosmo = wcosmo.FlatLambdaCDM(
-                    H0 = cosmo.H0.value, Om0 = cosmo.Om0,
-                )
-
-                d = f[analysis]['luminosity_distance_Mpc']
-                z = wcosmo.z_at_value(cosmo.luminosity_distance, d)
-
-                m1 = f[analysis]['m1_detector_frame_Msun'] / (1 + z)
-                m2 = f[analysis]['m2_detector_frame_Msun'] / (1 + z)
-                q = m2 / m1
-
-                posteriors[event] = dict(
-                    luminosity_distance = d,
-                    redshift = z,
-                    mass_1_source = m1,
-                )
-
-                if mass_ratio:
-                    posteriors[event]['mass_ratio'] = q
-                else:
-                    posteriors[event]['mass_2_source'] = m2
-
-                if chi_eff:
-                    posteriors[event]['chi_eff'] = (
-                        q,
-                        f[analysis]['spin1'],
-                        f[analysis]['spin2'],
-                        f[analysis]['costilt1'],
-                        f[analysis]['costilt2'],
-                    )
-                    if chi_p:
-                        posteriors[event][label]['chi_p'] = eval_chi_p(
-                            q,
-                            f[analysis]['spin1'],
-                            f[analysis]['spin2'],
-                            np.arccos(f[analysis]['costilt1']),
-                            np.arccos(f[analysis]['costilt2']),
-                        )
-                else:
-                    posteriors[event]['a_1'] = f[analysis]['spin1']
-                    posteriors[event]['a_2'] = f[analysis]['spin2']
-                    posteriors[event]['cos_tilt_1'] = f[analysis]['costilt1']
-                    posteriors[event]['cos_tilt_2'] = f[analysis]['costilt2']
-
-            else:
-                if event == 'GW190425':
-                    analysis = 'C01:IMRPhenomPv2_NRTidal:HighSpin'
-                elif event == 'GW230529_181500':
-                    analysis = 'C00:Mixed:HighSpin'
-                else:
-                    analysis = None
-                    for key in 'C00:NRSur7dq4', 'C00:Mixed', 'C01:Mixed':
-                        if key in f:
-                            analysis = key
-                            break
-                    assert analysis is not None
-
-                posteriors[event] = {
-                    key: f[analysis]['posterior_samples'][key][()]
-                    for key in keys
-                }
-
-        posteriors[event]['file'] = file
-        posteriors[event]['analysis'] = analysis
-
-    events = list(posteriors)
-
-    if downsample is not False:
-        if downsample is True:
-            max_samples = np.inf
-            for event in posteriors:
-                max_samples = min(
-                    max_samples, posteriors[event]['redshift'].size,
-                )
-        else:
-            assert type(downsample) is int
-            max_samples = int(downsample)
-
-        for event in posteriors:
-            idxs = np.random.choice(
-                posteriors[event]['redshift'].size,
-                min(posteriors[event]['redshift'].size, max_samples),
-                replace = False,
-            )
-            for key in set(posteriors[event]) - {'file', 'analysis'}:
-                posteriors[event][key] = posteriors[event][key][idxs]
-
-    for event in tqdm(posteriors):
-        if 'GW170817' in event:
-            prior = (
-                posteriors[event].pop('luminosity_distance') ** 2
-                * cosmo.dDLdz(posteriors[event]['redshift'])
-                * (1 + posteriors[event]['redshift']) ** 2
-            )
-        else:
-            prior = standard_prior(posteriors[event]['redshift'])
-        if mass_ratio:
-            prior *= posteriors[event]['mass_1_source']
-        if chi_eff:
-            if mass_ratio:
-                q = posteriors[event]['mass_ratio']
-            else:
-                q = (
-                    posteriors[event]['mass_2_source'] /
-                    posteriors[event]['mass_1_source']
-                )
-            if chi_p:
-                prior *= prior_chieff_chip_isotropic(
-                    posteriors[event][analysis]['chi_eff'],
-                    posteriors[event][analysis]['chi_p'],
-                    q,
-                )
-            else:
-                prior *= chi_effective_prior_from_isotropic_spins(
-                    posteriors[event][analysis]['chi_eff'], q,
-                )
-        posteriors[event]['weight'] = 1 / prior
-
-    if downsample is not False:
-        for event in posteriors:
-            posteriors[event]['total'] = len(posteriors[event]['weight'])
-            if posteriors[event]['total'] < max_samples:
-                for key in keys:
-                    posteriors[event][key] = np.concatenate((
-                        posteriors[event][key],
-                        np.ones(max_samples - posteriors[event]['total']),
-                    ))
-                posteriors[event]['weight'] = np.concatenate((
-                    posteriors[event]['weight'],
-                    np.zeros(max_samples - posteriors[event]['total']),
-                ))
-
-        posteriors = {
-            k: np.array([posteriors[event][k] for event in posteriors])
-            for k in keys + ['weight', 'total']
-        }
-
-    return posteriors, events, sorted(set(exclude))
+    return
 
 
 def get_injections(
     path,
-    catalog = 'gwtc4',
+    catalog = 'GWTC-4',
     min_ifar = 1,
     min_snr = 10,
+    source = True,
     mass_ratio = False,
     chi_eff = False,
     chi_p = False,
     extra_keys = [],
 ):
-    if catalog == 'gwtc3':
-        file = (
-            f'{path}/lvk-data/GWTC-4/VT/'
-            'mixture-semi_o1_o2-real_o3-cartesian_spins_20250503134659UTC.hdf'
-        )
-    elif catalog == 'gwtc4':
-        file = (
-            f'{path}/lvk-data/GWTC-4/VT/'
-            'mixture-semi_o1_o2-real_o3_o4a-cartesian_spins_20250503134659UTC.hdf'
-        )
-
+    file = f'{path}/lvk-data/GWTC-4/VT/mixture-semi_o1_o2-real_o3'
+    if catalog == 'GWTC-3':
+        file += '-cartesian_spins_20250503134659UTC.hdf'
+    elif catalog == 'GWTC-4':
+        file += '_o4a-cartesian_spins_20250503134659UTC.hdf'
     print(file)
 
     injections = {}

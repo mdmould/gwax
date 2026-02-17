@@ -218,7 +218,6 @@ def postprocess_bilby(result, likelihood):
 
     return result
 
-
 def prior_fraction(likelihood, priors, n = 10_000):
     samples = priors.sample(n)
     for k in samples:
