@@ -53,9 +53,3 @@ def comoving_to_detector(redshift, H0, Om0):
         wcosmo.differential_comoving_volume(redshift, H0, Om0)
         * 4 * np.pi / 1e9 / (1 + redshift)
     )
-
-def comoving_to_detector_lal(redshift):
-    cosmo = bilby.gw.cosmology.get_cosmology('Planck15_LAL')
-    H0 = float(cosmo.H0.value) # 67.9
-    Om0 = float(cosmo.Om0) # 0.3065
-    return comoving_to_detector(redshift, Om0, H0)
