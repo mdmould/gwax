@@ -80,8 +80,8 @@ def waveform_priority(event, catalog, analyses):
     )
     if event in event_specific:
         return event_specific[event]
-    elif catalog == 'GWTC-1':
-        return ['IMRPhenomPv2_posterior', 'SEOBNRv3_posterior']
+    # elif catalog == 'GWTC-1': # this option should never end up selected
+    #     return ['IMRPhenomPv2_posterior', 'SEOBNRv3_posterior']
     elif catalog == 'GWTC-2':
         return ['C01:NRSur7dq4']
     elif catalog == 'GWTC-2.1':
@@ -97,7 +97,7 @@ def waveform_priority(event, catalog, analyses):
         else:
             return ['C00:IMRPhenomXPHM-SpinTaylor', 'C00:SEOBNRv5PHM']
 
-def get_event_samples(file, analyses, keys):
+def get_event(path, event, keys):
     swap = dict(
         a_1 = 'spin1',
         a_2 = 'spin2',
@@ -110,24 +110,17 @@ def get_event_samples(file, analyses, keys):
         ra = 'right_ascension',
         dec = 'declination',
     )
-    samples = {}
-    with h5py.File(file) as f:
-        for analysis in analyses:
-            if 'GWTC-1' in file:
-                data = f[analysis]
-                samples[analysis] = {key: data[swap[key]] for key in keys}
-            else:
-                data = f[analysis]['posterior_samples']
-                samples[analysis] = {key: data[key] for key in keys}
-    return samples
-
-def get_event(path, event, keys):
     catalog, file = get_event_catalog_and_file(path, event)
+    data = dict(catalog = catalog, file = file)
     with h5py.File(file) as f:
         analyses = waveform_priority(event, catalog, f)
-    data = get_event_samples(file, analyses, keys)
-    data['catalog'] = catalog
-    data['file'] = file
+        for analysis in analyses:
+            if catalog == 'GWTC-1':
+                samples = f[analysis]
+                data[analysis] = {key: samples[swap[key]] for key in keys}
+            else:
+                samples = f[analysis]['posterior_samples']
+                data[analysis] = {key: samples[key] for key in keys}
     return data
 
 
@@ -204,6 +197,7 @@ def convert_effective_spin_posterior(data, chi_eff, chi_p):
                 data['chi_eff'], mass_ratio,
             )
     return data
+
 
 def get_posteriors(
     path,
