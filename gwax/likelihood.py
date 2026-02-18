@@ -55,7 +55,7 @@ def rate_likelihood_ingredients(posteriors, injections, density, parameters):
     ln_likelihood = jnp.sum(ln_lkls) - num_exp
     variance = jnp.sum(pe_variances) + vt_variance * injections['time'] ** 2
     return dict(
-        ln_likelihood = ln_likelihood, variance = variance, num_exp = num_exp,
+        ln_likelihood = ln_likelihood, variance = variance, num = num,
     )
 
 
