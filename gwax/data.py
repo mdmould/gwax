@@ -249,7 +249,7 @@ def get_posteriors(
             new_posterior = downsample_posterior(posteriors[event], total)
             for key in keys:
                 new_posteriors[key].append(new_posterior[key])
-        new_posteriors['total'] = total
+        new_posteriors['total'] = np.array([total] * len(posteriors))
         new_posteriors = {
             key: np.array(new_posteriors[key]) for key in new_posteriors
         }
