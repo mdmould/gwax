@@ -23,33 +23,39 @@ def source_to_detector(mass_1_source, mass_2_source, redshift, H0, Om0):
     return mass_1, mass_2, luminosity_distance, 1 / jacobian
 
 def data_to_source(data, H0, Om0):
-    mass_1_source, mass_2_source, redshift, jacobian = detector_to_source(
-        data['mass_1'], data['mass_2'], data['luminosity_distance'], H0, Om0,
+    (
+        data['mass_1_source'],
+        data['mass_2_source'],
+        data['redshift'],
+        jacobian,
+    ) = detector_to_source(
+        data.pop('mass_1'),
+        data.pop('mass_2'),
+        data.pop('luminosity_distance'),
+        H0,
+        Om0,
     )
-    data['mass_1_source'] = mass_1_source
-    data['mass_2_source'] = mass_2_source
-    data['redshift'] = redshift
     data['weight'] /= jacobian
-    data.pop('mass_1')
-    data.pop('mass_2')
-    data.pop('luminosity_distance')
     return data
 
 def data_to_detector(data, H0, Om0):
-    mass_1, mass_2, luminosity_distance, jacobian = source_to_detector(
-        data['mass_1_source'], data['mass_2_source'], data['reshuft'], H0, Om0,
+    (
+        data['mass_1'],
+        data['mass_2'],
+        data['luminosity_distance'],
+        jacobian,
+    ) = source_to_detector(
+        data.pop('mass_1_source'),
+        data.pop('mass_2_source'),
+        data.pop('redshift'),
+        H0,
+        Om0,
     )
-    data['mass_1'] = mass_1
-    data['mass_2'] = mass_2
-    data['luminosity_distance'] = luminosity_distance
     data['weight'] /= jacobian
-    data.pop('mass_1_source')
-    data.pop('mass_2_source')
-    data.pop('redshift')
     return data
 
 def comoving_to_detector(redshift, H0, Om0):
-    return (
-        wcosmo.differential_comoving_volume(redshift, H0, Om0)
-        * 4 * np.pi / 1e9 / (1 + redshift)
-    )
+    dV_dz = wcosmo.differential_comoving_volume(redshift, H0, Om0)
+    solid_angle = 4 * np.pi
+    Mpc_to_Gpc = 1e-3
+    return dV_dz * solid_angle * Mpc_to_Gpc ** 3 / (1 + redshift)
