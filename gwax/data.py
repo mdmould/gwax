@@ -331,7 +331,18 @@ def get_injections(
     elif catalog == 'GWTC-4':
         file += '_o4a-cartesian_spins_20250503134659UTC.hdf'
     print(file)
+    return _get_injections(
+        path + '/' + file, catalog, min_ifar, min_snr, chi_eff, chi_p,
+    )
 
+def _get_injections(
+    file,
+    catalog = 'GWTC-4',
+    min_ifar = 1,
+    min_snr = 10,
+    chi_eff = False,
+    chi_p = False,
+):
     injections = {}
 
     with h5py.File(file, 'r') as f:
