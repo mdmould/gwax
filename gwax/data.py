@@ -337,7 +337,6 @@ def get_injections(
 
 def _get_injections(
     file,
-    catalog = 'GWTC-4',
     min_ifar = 1,
     min_snr = 10,
     chi_eff = False,
