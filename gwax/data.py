@@ -332,7 +332,7 @@ def get_injections(
         file += '_o4a-cartesian_spins_20250503134659UTC.hdf'
     print(file)
     return _get_injections(
-        path + '/' + file, catalog, min_ifar, min_snr, chi_eff, chi_p,
+        path + '/' + file, min_ifar, min_snr, chi_eff, chi_p,
     )
 
 def _get_injections(
