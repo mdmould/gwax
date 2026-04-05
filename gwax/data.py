@@ -331,9 +331,7 @@ def get_injections(
     elif catalog == 'GWTC-4':
         file += '_o4a-cartesian_spins_20250503134659UTC.hdf'
     print(file)
-    return _get_injections(
-        path + '/' + file, min_ifar, min_snr, chi_eff, chi_p,
-    )
+    return _get_injections(file, min_ifar, min_snr, chi_eff, chi_p)
 
 def _get_injections(
     file,
