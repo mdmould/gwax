@@ -40,6 +40,7 @@ def get_event_file(path, catalog, event):
         files = glob(f'{path}/lvk-data/{catalog}/PE/{event}.h5')
     elif catalog in ['GWTC-2.1', 'GWTC-3']:
         files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*_nocosmo.h5')
+        # files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*_cosmo.h5')
     else: # GWTC-1, GWTC-4s
         files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*.hdf5')
     if event == 'GW190521':
@@ -62,6 +63,8 @@ def get_event_catalog_and_file(path, event):
                 catalog = 'GWTC-2'
             else:
                 catalog = 'GWTC-2.1'
+    # if 'GWTC-2.1' in files:
+    #     catalog = 'GWTC-2.1'
     else:
         assert len(files) == 1
         catalog = list(files)[0]
@@ -154,6 +157,7 @@ def prior_comoving_source(luminosity_distance, H0, Om0):
 def compute_initial_prior(data, catalog):
     H0 = 67.9
     Om0 = 0.3065
+    # return prior_comoving_source(data['luminosity_distance'], H0, Om0)
     if catalog == 'GWTC-4':
         return prior_comoving_source(data['luminosity_distance'], H0, Om0)
     else:
