@@ -27,36 +27,33 @@ def estimator_and_variance_from_ln(ln_weights, n, axis = -1):
     return jnp.exp(ln_mean), jnp.exp(jnp.log(variance) + 2 * ln_mean)
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, num_pe = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
     ln_lkls, pe_variances = ln_estimator_and_variance(
-        pe_weights, posteriors['total'], axis = -1,
+        pe_weights, posteriors['total'],
     )
-    ln_volume, vt_variance = ln_estimator_and_variance(
+    ln_vt, vt_variance = ln_estimator_and_variance(
         vt_weights, injections['total'],
     )
-    ln_vt = ln_volume + jnp.log(injections['time']) # dependence of variance on T cancels
+    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
+    num_obs = posteriors['total'].size
+    ln_likelihood = jnp.sum(ln_lkls) - ln_vt * num_obs
+    variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2
     return dict(
-        ln_likelihood = jnp.sum(ln_lkls) - ln_vt * num_obs,
-        variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2,
-        ln_vt = ln_vt,
+        ln_likelihood = ln_likelihood, variance = variance, ln_vt = ln_vt,
     )
 
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, num_pe = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
     ln_lkls, pe_variances = ln_estimator_and_variance(
-        pe_weights, posteriors['total'], axis = -1,
+        pe_weights, posteriors['total'],
     )
     rate, vt_variance = estimator_and_variance(vt_weights, injections['total'])
     num = rate * injections['time']
     ln_likelihood = jnp.sum(ln_lkls) - num
     variance = jnp.sum(pe_variances) + vt_variance * injections['time'] ** 2
-    return dict(
-        ln_likelihood = ln_likelihood, variance = variance, num = num,
-    )
+    return dict(ln_likelihood = ln_likelihood, variance = variance, num = num)
 
 
 def estimator_and_variance_stacked(weights, n):
@@ -71,8 +68,8 @@ def estimator_and_variance_stacked(weights, n):
     return means, variances
 
 def ln_estimator_and_variance_stacked(weights, n):
-    mean, variance = estimator_and_variance_stacked(weights, n)
-    return jnp.log(mean), variance / mean ** 2
+    means, variances = estimator_and_variance_stacked(weights, n)
+    return jnp.log(means), variances / means ** 2
 
 def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
@@ -101,7 +98,6 @@ def estimator_and_variance_stacked_from_ln(ln_weights, n):
 def shape_likelihood_ingredients_stacked(
     posteriors, injections, density, parameters,
 ):
-    num_obs = posteriors['total'].size
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
     ln_lkls, pe_variances = ln_estimator_and_variance_stacked(
@@ -110,11 +106,12 @@ def shape_likelihood_ingredients_stacked(
     ln_vt, vt_variance = ln_estimator_and_variance(
         vt_weights, injections['total'],
     )
-    ln_vt += jnp.log(injections['time'])
+    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
+    num_obs = posteriors['total'].size
+    ln_likelihood = jnp.sum(ln_lkls) - ln_vt * num_obs
+    variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2
     return dict(
-        ln_likelihood = jnp.sum(ln_lkls) - ln_vt * num_obs,
-        variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2,
-        ln_vt = ln_vt,
+        ln_likelihood = ln_likelihood, variance = variance, ln_vt = ln_vt,
     )
 
 def rate_likelihood_ingredients_stacked(
@@ -129,11 +126,7 @@ def rate_likelihood_ingredients_stacked(
     num = rate * injections['time']
     ln_likelihood = jnp.sum(ln_lkls) - num
     variance = jnp.sum(pe_variances) + vt_variance * injections['time'] ** 2
-    return dict(
-        ln_likelihood = ln_likelihood,
-        variance = variance,
-        num = num,
-    )
+    return dict(ln_likelihood = ln_likelihood, variance = variance, num = num)
 
 
 def ln_likelihood(
