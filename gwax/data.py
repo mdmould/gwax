@@ -207,8 +207,8 @@ def get_posteriors(
     downsample = False,
     stack = True,
 ):
-    exclude = sorted(set(exclude))
     events = get_events_list(catalog, min_ifar, bbh, er)
+    exclude = sorted(set(exclude))
 
     keys = [
         'luminosity_distance',
@@ -230,7 +230,7 @@ def get_posteriors(
             exclude.append(event)
             print(f'Could not get sample for {event}, excluding...')
 
-    events = list(posteriors)
+    events = sorted(posteriors)
     exclude = sorted(set(exclude))
 
     if downsample:
