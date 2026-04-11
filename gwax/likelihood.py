@@ -80,7 +80,7 @@ def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
     ln_weights = jnp.insert(ln_weights, 0, -jnp.inf)
     # ln_sums = jnp.logaddexp.accumulate(ln_weights)
     # ln_sums_sq = jnp.logaddexp.accumulate(2 * ln_weights)
-    ln_sum = logcumsumexp(ln_weights)
+    ln_sums = logcumsumexp(ln_weights)
     ln_sums_sq = logcumsumexp(2 * ln_weights)
     ln_sums = jax.nn.logsumexp(
         jnp.array([ln_sums[idxs[1:]], ln_sums[idxs[:-1]]]),
@@ -211,7 +211,9 @@ def postprocess_bilby(result, likelihood):
 
     if 'ln_vt' in ingredients:
         ingredients['rate'] = resample_rate(
-            jax.random.key(0), likelihood.num_obs, jnp.exp(ingredients['ln_vt']),
+            jax.random.key(0),
+            likelihood.num_obs,
+            jnp.exp(ingredients['ln_vt']),
         )
 
     for k in ingredients:
