@@ -71,11 +71,17 @@ def ln_estimator_and_variance_stacked(weights, n):
     means, variances = estimator_and_variance_stacked(weights, n)
     return jnp.log(means), variances / means ** 2
 
+def logcumsumexp(x, axis = None):
+    c = jnp.max(x)
+    return c + jnp.log(jnp.cumsum(jnp.exp(x - c), axis = axis))
+
 def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
     ln_weights = jnp.insert(ln_weights, 0, -jnp.inf)
-    ln_sums = jnp.logaddexp.accumulate(ln_weights)
-    ln_sums_sq = jnp.logaddexp.accumulate(2 * ln_weights)
+    # ln_sums = jnp.logaddexp.accumulate(ln_weights)
+    # ln_sums_sq = jnp.logaddexp.accumulate(2 * ln_weights)
+    ln_sum = logcumsumexp(ln_weights)
+    ln_sums_sq = logcumsumexp(2 * ln_weights)
     ln_sums = jax.nn.logsumexp(
         jnp.array([ln_sums[idxs[1:]], ln_sums[idxs[:-1]]]),
         b = jnp.array([1, -1])[:, None],
