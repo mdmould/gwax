@@ -11,15 +11,16 @@ To install the latest development: `pip install git+https://github.com/mdmould/g
 
 ## Implementations
 
-- Flow-based variational inference for gravitational-wave population analysis.
+- Helper functions to load LVK data.
+- Likelihood for gravitational-wave population analysis, including a new implementation that avoids single-event downsampling.
+- Some standard parametric population models.
+- Nonparametric population models.
+- Flow-based variational inference, e.g., for population analyses.
 
 ## Usage
 
 See the [examples](https://github.com/mdmould/gwax/tree/main/examples).
 
-## Current limitations
+## Limitations
 
-- gwax is being actively developed and the interface is likely to undergo breaking changes.
-- Currently the only thing implemented is variation inference of gravitational-wave populations.
-- Variational population inference only interfaces with [gwpopulation](https://github.com/ColmTalbot/gwpopulation).
-- Only univariate uniform priors are supported.
+Note that I made this repo primarily to contain code I reuse many times, not as a comprehensive and documented package. Please get in touch if you'd like help using it 👍
