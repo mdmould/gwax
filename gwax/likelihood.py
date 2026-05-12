@@ -43,7 +43,7 @@ def shape_likelihood_ingredients(posteriors, injections, density, parameters):
         ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
         variance = variance_pe + variance_vt,
         variance_pe = variance_pe,
-        vt_variance = variance_vt,
+        variance_vt = variance_vt,
         ln_vt = ln_vt,
     )
 
