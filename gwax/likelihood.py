@@ -41,7 +41,7 @@ def shape_likelihood_ingredients(posteriors, injections, density, parameters):
     variance_vt *= num_obs ** 2
     return dict(
         ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
-        variance = pe_variance + variance_vt,
+        variance = variance_pe + variance_vt,
         variance_pe = variance_pe,
         vt_variance = variance_vt,
         ln_vt = ln_vt,
