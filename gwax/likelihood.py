@@ -47,6 +47,9 @@ def shape_likelihood_ingredients(posteriors, injections, density, parameters):
         ln_vt = ln_vt,
     )
 
+def resample_rate(key, num_obs, vt):
+    return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
+
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
@@ -204,9 +207,6 @@ class BilbyLikelihood(bilby.Likelihood):
             self.posteriors, self.injections, parameters,
         )
 
-
-def resample_rate(key, num_obs, vt):
-    return jax.random.gamma(key, num_obs, shape = vt.shape) / vt
 
 def postprocess_bilby(result, likelihood):
     n = len(result.posterior)
