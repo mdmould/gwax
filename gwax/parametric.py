@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
 
-import wcosmo
-wcosmo.disable_units()
+
+def cumulative_trapezoid(y, x):
+    return jnp.insert(jnp.cumsum((y[1:] + y[:-1]) * jnp.diff(x) / 2), 0, 0)
 
 
 def cubic_filter(x):
