@@ -15,7 +15,7 @@ def get_adjacent(*shape):
         b = grid[tuple(sl2)].ravel()
         pairs_list.append(np.stack([a, b], axis=1))
     return jnp.vstack(pairs_list)
-    
+
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, len(edges) - 2)
 
@@ -41,13 +41,8 @@ def ln_prior_icar_gamma_marginalized_tau(adj, y, a, b):
     return ln_prior
 
 def resample_tau(key, adj, y, a, b):
-    penalty = icar_penalty(adj, y)
-    g = jax.random.gamma(key, a + (y.size - 1) / 2)
-    tau = g / (b + penalty)
-    return tau
-
-def resample_taus(key, adj, ys, a, b):
-    penalties = jax.vmap(lambda y: icar_penalty(adj, y))(ys)
-    gs = jax.random.gamma(key, a + (y.shape[-1] - 1) / 2, y.shape[:-1])
-    taus = gs / (b + penalties)
-    return taus
+    *shape, n = y.shape
+    penalty = jax.vmap(lambda y: icar_penalty(adj, y))(y.reshape(-1, n))
+    gs = jax.random.gamma(key, a + (n - 1) / 2, penalty.shape)
+    tau = gs / (b + penalty)
+    return tau.reshape(shape)
