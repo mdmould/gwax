@@ -28,7 +28,7 @@ def get_bins_nd(samples, edges):
     return jnp.ravel_multi_index(multi_index, dims)
 
 def icar_penalty(adj, y):
-    return jnp.sum(jnp.diff(y[adj], axis = 1).squeeze() ** 2) / 2
+    return jnp.sum(jnp.diff(y[adj], axis = 1) ** 2) / 2
 
 def ln_prior_icar(adj, y, tau):
     penalty = icar_penalty(adj, y)
