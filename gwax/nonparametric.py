@@ -1,10 +1,9 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 
 def get_adjacent(*shape):
-    grid = np.arange(np.prod(shape)).reshape(shape)
+    grid = jnp.arange(jnp.array(shape).prod()).reshape(shape)
     pairs_list = []
     for axis in range(len(shape)):
         sl1 = [slice(None)] * len(shape)
@@ -13,7 +12,7 @@ def get_adjacent(*shape):
         sl2[axis] = slice(1, None)
         a = grid[tuple(sl1)].ravel()
         b = grid[tuple(sl2)].ravel()
-        pairs_list.append(np.stack([a, b], axis=1))
+        pairs_list.append(jnp.stack([a, b], axis = 1))
     return jnp.vstack(pairs_list)
 
 def get_bins(samples, edges):
