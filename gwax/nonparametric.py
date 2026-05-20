@@ -29,14 +29,14 @@ def get_bins_1d(samples, edges):
 def icar_penalty(adj, y):
     return jnp.sum(jnp.diff(y[adj], axis = 1) ** 2) / 2
 
-def ln_prior_icar(adj, y, tau):
+def ln_prior_icar(n, adj, y, tau):
     penalty = icar_penalty(adj, y)
-    ln_prior = jnp.log(tau) * (y.size - 1) / 2 - penalty * tau
+    ln_prior = jnp.log(tau) * (n - 1) / 2 - penalty * tau
     return ln_prior
 
-def ln_prior_icar_gamma(adj, y, a, b):
+def ln_prior_icar_gamma(n, adj, y, a, b):
     penalty = icar_penalty(adj, y)
-    ln_prior = -(a + (y.size - 1) / 2) * jnp.log(b + penalty)
+    ln_prior = -(a + (n - 1) / 2) * jnp.log(b + penalty)
     return ln_prior
 
 def resample_tau(key, adj, y, a, b):
