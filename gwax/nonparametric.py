@@ -17,11 +17,11 @@ def get_adjacent(*shape):
 
 def get_bins(samples, edges):
     multi_index = [
-        jnp.clip(jnp.digitize(x, e) - 1, 0, len(e) - 2)
+        jnp.clip(jnp.digitize(x, e) - 1, 0, e.size - 2)
         for x, e in zip(samples, edges)
     ]
-    dims = [len(e) - 1 for e in edges]
-    return jnp.ravel_multi_index(multi_index, dims)
+    dims = [e.size - 1 for e in edges]
+    return jnp.ravel_multi_index(multi_index, dims, mode = 'clip')
 
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, len(edges) - 2)
