@@ -15,7 +15,7 @@ import wcosmo; wcosmo.disable_units()
 from gwax.cosmology import source_to_detector
 
 
-def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
+def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False, rm = True):
     url = 'https://gwosc.org/eventapi/ascii/query/show?release='
     url += ','.join(
         [
@@ -29,7 +29,8 @@ def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
     temp = f'./events-{time.time_ns()}.txt'
     os.system(f'wget -O {temp} "{url}"')
     events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
-    os.system(f'rm {temp}')
+    if rm:
+        os.system(f'rm {temp}')
     events = sorted(map(str, np.unique(events)))
     if not er and not bbh:
         events.remove('GW230518_125908')
@@ -205,9 +206,10 @@ def get_posteriors(
     chi_eff = False,
     chi_p = False,
     downsample = False,
-    stack = True,
+    stack = False,
+    rm_events_list = True,
 ):
-    events = get_events_list(catalog, min_ifar, bbh, er)
+    events = get_events_list(catalog, min_ifar, bbh, er, rm_events_list)
     exclude = sorted(set(exclude))
 
     keys = [
