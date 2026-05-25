@@ -86,7 +86,7 @@ def bandpass_normal(x, mu, sigma, lo, hi, dlo, dhi):
 def powerlaw(x, alpha, lo):
     cut = lo <= x
     shape = x ** alpha
-    norm = - low ** (alpha + 1) / (alpha + 1)
+    norm = - lo ** (alpha + 1) / (alpha + 1)
     return cut * shape / norm
 
 
