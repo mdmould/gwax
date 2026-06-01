@@ -206,10 +206,9 @@ def get_posteriors(
     chi_p = False,
     downsample = False,
     stack = False,
-    rm_events_list = True,
 ):
     if type(catalog) is str:
-        events = get_events_list(catalog, min_ifar, bbh, er, rm_events_list)
+        events = get_events_list(catalog, min_ifar, bbh, er)
     else:
         events = catalog
 
