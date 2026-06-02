@@ -15,15 +15,28 @@ import wcosmo; wcosmo.disable_units()
 from gwax.cosmology import source_to_detector
 
 
-def get_events_list(catalog = 'GWTC-4', min_ifar = 1, bbh = True, er = False):
+catalogs = (
+    'GWTC-1',
+    # 'GWTC-2',
+    'GWTC-2.1',
+    'GWTC-3',
+    'GWTC-4', 'GWTC-4.1',
+    'GWTC-5',
+)
+
+
+def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     url = 'https://gwosc.org/eventapi/ascii/query/show?release='
     url += ','.join(
         [
             'GWTC-1-confident,GWTC-1-marginal',
+            # 'GWTC-2',
             'GWTC-2.1-confident,GWTC-2.1-marginal',
             'GWTC-3-confident,GWTC-3-marginal',
             'GWTC-4.0',
-        ][:int(catalog.split('-')[1][0])]
+            'GWTC-4.1',
+            'GWTC-5.0',
+        ][:catalogs.index(catalog) + 1]
     )
     url += f'&min-mass-2-source={3 if bbh else 0}&max-far={1 / min_ifar}'
     temp = f'./events-{time.time_ns()}.txt'
@@ -40,7 +53,7 @@ def get_event_file(path, catalog, event):
         files = glob(f'{path}/lvk-data/{catalog}/PE/{event}.h5')
     elif catalog in ['GWTC-2.1', 'GWTC-3']:
         files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*_nocosmo.h5')
-    else: # GWTC-1, GWTC-4
+    else: # GWTC-1, GWTC-4, GWTC-4.1, GWTC-5
         files = glob(f'{path}/lvk-data/{catalog}/PE/*{event}*.hdf5')
     if event == 'GW190521':
         files = [file for file in files if 'GW190521_074359' not in file]
@@ -49,7 +62,7 @@ def get_event_file(path, catalog, event):
 
 def get_event_catalog_and_file(path, event):
     files = {}
-    for catalog in 'GWTC-1', 'GWTC-2', 'GWTC-2.1', 'GWTC-3', 'GWTC-4':
+    for catalog in catalogs:
         try:
             files[catalog] = get_event_file(path, catalog, event)
         except:
@@ -62,6 +75,8 @@ def get_event_catalog_and_file(path, event):
                 catalog = 'GWTC-2'
             else:
                 catalog = 'GWTC-2.1'
+    elif 'GWTC-4' in files and 'GWTC-4.1' in files:
+        catalog = 'GWTC-4.1'
     else:
         assert len(files) == 1
         catalog = list(files)[0]
@@ -77,12 +92,13 @@ def waveform_priority(event, catalog, analyses):
         GW230529_181500 = [
             'C00:IMRPhenomXPHM:HighSpin', 'C00:SEOBNRv5PHM:HighSpin',
         ],
+        GW240925_005809 = ['C01:IMRPhenomXPHM-SpinTaylor', 'C01:SEOBNRv5PHM'],
     )
     if event in event_specific:
         return event_specific[event]
-    # elif catalog == 'GWTC-1': # this option should never end up selected
-    #     return ['IMRPhenomPv2_posterior', 'SEOBNRv3_posterior']
-    elif catalog == 'GWTC-2':
+    elif catalog == 'GWTC-1': # this option should never end up selected
+        return ['IMRPhenomPv2_posterior', 'SEOBNRv3_posterior']
+    elif catalog == 'GWTC-2': # only selected when NRSur is available
         return ['C01:NRSur7dq4']
     elif catalog == 'GWTC-2.1':
         if 'C01:SEOBNRv4PHM' in analyses:
@@ -91,7 +107,7 @@ def waveform_priority(event, catalog, analyses):
             return ['C01:IMRPhenomXPHM']
     elif catalog == 'GWTC-3':
         return ['C01:IMRPhenomXPHM', 'C01:SEOBNRv4PHM']
-    elif catalog == 'GWTC-4':
+    elif catalog in ('GWTC-4', 'GWTC-4.1', 'GWTC-5'):
         if 'C00:NRSur7dq4' in analyses:
             return ['C00:NRSur7dq4']
         else:
@@ -197,7 +213,7 @@ def convert_effective_spin_posterior(data, chi_eff, chi_p):
 
 def get_posteriors(
     path,
-    catalog = 'GWTC-4',
+    catalog,
     min_ifar = 1,
     bbh = True,
     er = False,
@@ -206,10 +222,9 @@ def get_posteriors(
     chi_p = False,
     downsample = False,
     stack = False,
-    rm_events_list = True,
 ):
     if type(catalog) is str:
-        events = get_events_list(catalog, min_ifar, bbh, er, rm_events_list)
+        events = get_events_list(catalog, min_ifar, bbh, er)
     else:
         events = catalog
 
@@ -233,7 +248,7 @@ def get_posteriors(
             posteriors[event] = get_event(path, event, keys)
         except:
             exclude.append(event)
-            print(f'Could not get sample for {event}, excluding...')
+            print(f'Could not get samples for {event}, excluding...')
 
     events = sorted(posteriors)
     exclude = sorted(set(exclude))
@@ -323,17 +338,19 @@ def get_posteriors(
 
 def get_injections(
     path,
-    catalog = 'GWTC-4',
+    catalog,
     min_ifar = 1,
     min_snr = 10,
     chi_eff = False,
     chi_p = False,
 ):
-    file = f'{path}/lvk-data/GWTC-4/VT/mixture-semi_o1_o2-real_o3'
     if catalog == 'GWTC-3':
-        file += '-cartesian_spins_20250503134659UTC.hdf'
+        file = 'GWTC-4/VT/mixture-semi_o1_o2-real_o3-cartesian_spins_20250503134659UTC.hdf'
     elif catalog == 'GWTC-4':
-        file += '_o4a-cartesian_spins_20250503134659UTC.hdf'
+        file = 'GWTC-4/VT/mixture-semi_o1_o2-real_o3_o4a-cartesian_spins_20250503134659UTC.hdf'
+    elif catalog == 'GWTC-5':
+        file = 'GWTC-5/VT/mixture-semi_o1_o2-real_o3_o4a_o4b-cartesian_spins_20260410130052UTC-clipped.hdf'
+    file = f'{path}/lvk-data/{file}'
     print(file)
     return _get_injections(file, min_ifar, min_snr, chi_eff, chi_p)
 
