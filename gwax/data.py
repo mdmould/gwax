@@ -158,10 +158,10 @@ def downsample_posterior(posterior, total):
     return new_posterior
 
 
-def prior_euclidean(luminosity_distance):
+def distance_prior_euclidean(luminosity_distance):
     return luminosity_distance ** 2
 
-def prior_comoving_source(luminosity_distance, H0, Om0):
+def distance_prior_comoving(luminosity_distance, H0, Om0):
     redshift = wcosmo.z_at_value(
         wcosmo.luminosity_distance, luminosity_distance, H0 = H0, Om0 = Om0,
     )
@@ -172,9 +172,9 @@ def prior_comoving_source(luminosity_distance, H0, Om0):
 def compute_initial_prior(data, catalog):
     H0 = 67.9
     Om0 = 0.3065
-    if catalog == 'GWTC-4':
-        return prior_comoving_source(data['luminosity_distance'], H0, Om0)
-    return prior_euclidean(data['luminosity_distance'])
+    if catalog in ('GWTC-1', 'GWTC-2', 'GWTC-2.1', 'GWTC-3'):
+        return distance_prior_euclidean(data['luminosity_distance'])
+    return distance_prior_comoving(data['luminosity_distance'], H0, Om0)
 
 
 def eval_chi_eff(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
