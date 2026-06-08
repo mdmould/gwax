@@ -11,7 +11,7 @@ To install the latest development: `pip install git+https://github.com/mdmould/g
 
 ## Implementations
 
-- Helper functions to load LVK data.
+- Helper functions to load LVK data downloaded using [`lvk-data`](https://github.com/mdmould/lvk-data).
 - Likelihood for gravitational-wave population analysis, including a new implementation that avoids single-event downsampling.
 - Some standard parametric population models.
 - Nonparametric population models.
