@@ -15,24 +15,25 @@ import wcosmo; wcosmo.disable_units()
 from gwax.cosmology import source_to_detector
 
 
-catalogs = (
-    'GWTC-1',
-    'GWTC-2', 'GWTC-2.1',
-    'GWTC-3',
-    'GWTC-4', 'GWTC-4.1',
-    'GWTC-5',
-)
-
-
 def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
+    catalogs = (
+        'GWTC-1',
+        # 'GWTC-2',
+        'GWTC-2.1',
+        'GWTC-3',
+        # 'GWTC-4',
+        'GWTC-4.1',
+        'GWTC-5',
+    )
+    assert catalog in catalogs
     url = 'https://gwosc.org/eventapi/ascii/query/show?release='
     url += ','.join(
         [
             'GWTC-1-confident,GWTC-1-marginal',
-            'GWTC-2',
+            # 'GWTC-2',
             'GWTC-2.1-confident,GWTC-2.1-marginal',
             'GWTC-3-confident,GWTC-3-marginal',
-            'GWTC-4.0',
+            # 'GWTC-4.0',
             'GWTC-4.1',
             'GWTC-5.0',
         ][:catalogs.index(catalog) + 1]
@@ -43,9 +44,6 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
     os.system(f'rm {temp}')
     events = sorted(map(str, np.unique(events)))
-    for event in 'GW190424_180648', 'GW190514_065416':
-        if event in events:
-            events.remove(event)
     if not er and not bbh:
         events.remove('GW230518_125908')
     return events
@@ -63,6 +61,15 @@ def get_event_file(path, catalog, event):
     return files[0]
 
 def get_event_catalog_and_file(path, event):
+    catalogs = (
+        'GWTC-1',
+        'GWTC-2',
+        'GWTC-2.1',
+        'GWTC-3',
+        'GWTC-4',
+        'GWTC-4.1',
+        'GWTC-5',
+    )
     files = {}
     for catalog in catalogs:
         try:
