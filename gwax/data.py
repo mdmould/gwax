@@ -17,8 +17,7 @@ from gwax.cosmology import source_to_detector
 
 catalogs = (
     'GWTC-1',
-    'GWTC-2',
-    'GWTC-2.1',
+    'GWTC-2', 'GWTC-2.1',
     'GWTC-3',
     'GWTC-4', 'GWTC-4.1',
     'GWTC-5',
@@ -45,7 +44,8 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     os.system(f'rm {temp}')
     events = sorted(map(str, np.unique(events)))
     for event in 'GW190424_180648', 'GW190514_065416':
-        events.remove(event)
+        if event in events:
+            events.remove(event)
     if not er and not bbh:
         events.remove('GW230518_125908')
     return events
