@@ -114,6 +114,27 @@ def estimator_and_variance_stacked_from_ln(ln_weights, n):
     ln_means, variances = ln_estimator_and_variance_stacked_from_ln(ln_weights, n)
     return jnp.exp(ln_means), jnp.exp(jnp.log(variances) + 2 * ln_means)
 
+def shape_likelihood_ingredients(posteriors, injections, density, parameters):
+    pe_weights = density(posteriors, parameters) * posteriors['weight']
+    vt_weights = density(injections, parameters) * injections['weight']
+    ln_lkls, pe_variances = ln_estimator_and_variance(
+        pe_weights, posteriors['total'],
+    )
+    ln_vt, variance_vt = ln_estimator_and_variance(
+        vt_weights, injections['total'],
+    )
+    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
+    num_obs = posteriors['total'].size
+    variance_pe = pe_variances.sum()
+    variance_vt *= num_obs ** 2
+    return dict(
+        ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
+        variance = variance_pe + variance_vt,
+        variance_pe = variance_pe,
+        variance_vt = variance_vt,
+        ln_vt = ln_vt,
+    )
+
 def shape_likelihood_ingredients_stacked(
     posteriors, injections, density, parameters,
 ):
@@ -122,15 +143,19 @@ def shape_likelihood_ingredients_stacked(
     ln_lkls, pe_variances = ln_estimator_and_variance_stacked(
         pe_weights, posteriors['total'],
     )
-    ln_vt, vt_variance = ln_estimator_and_variance(
+    ln_vt, variance_vt = ln_estimator_and_variance(
         vt_weights, injections['total'],
     )
     ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
     num_obs = posteriors['total'].size
-    ln_likelihood = jnp.sum(ln_lkls) - ln_vt * num_obs
-    variance = jnp.sum(pe_variances) + vt_variance * num_obs ** 2
+    variance_pe = pe_variances.sum()
+    variance_vt *= num_obs ** 2
     return dict(
-        ln_likelihood = ln_likelihood, variance = variance, ln_vt = ln_vt,
+        ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
+        variance = variance_pe + variance_vt,
+        variance_pe = variance_pe,
+        variance_vt = variance_vt,
+        ln_vt = ln_vt,
     )
 
 def rate_likelihood_ingredients_stacked(
@@ -141,11 +166,17 @@ def rate_likelihood_ingredients_stacked(
     ln_lkls, pe_variances = ln_estimator_and_variance_stacked(
         pe_weights, posteriors['total'],
     )
-    rate, vt_variance = estimator_and_variance(vt_weights, injections['total'])
+    rate, variance_vt = estimator_and_variance(vt_weights, injections['total'])
     num = rate * injections['time']
-    ln_likelihood = jnp.sum(ln_lkls) - num
-    variance = jnp.sum(pe_variances) + vt_variance * injections['time'] ** 2
-    return dict(ln_likelihood = ln_likelihood, variance = variance, num = num)
+    variance_pe = pe_variances.sum()
+    variance_vt *= injections['time'] ** 2
+    return dict(
+        ln_likelihood = ln_lkls.sum() - num,
+        variance = variance_pe + variance_vt,
+        variance_pe = variance_pe,
+        variance_vt = variance_vt,
+        num = num,
+    )
 
 
 def ln_likelihood(
