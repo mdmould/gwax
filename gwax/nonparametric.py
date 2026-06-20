@@ -93,14 +93,16 @@ def resample_tau(key, adj, y, a, b):
     return tau.reshape(shape)
 
 
-def ln_prior_icar_1d_t(y, sigma, nu):
-    ln_prior = jax.scipy.stats.t.logpdf(jnp.diff(y), nu, scale = sigma).sum()
+def ln_prior_icar_1d_t(adj, y, sigma, nu):
+    t = icar_rv(adj, y)
+    ln_prior = jax.scipy.stats.t.logpdf(t, nu, scale = sigma).sum()
     # ln_prior = jax.scipy.stats.t.logpdf(t, nu).sum()
     # y *= sigma
     return ln_prior
 
 def ln_prior_icar_1d_multivariate_t(adj, y, sigma, nu):
+    t = icar_rv(adj, y)
     tril = jnp.eye(y.size - 1) * sigma
     dist = numpyro.distributions.MultivariateStudentT(nu, scale_tril = tril)
-    ln_prior = dist.log_prob(jnp.diff(y))
+    ln_prior = dist.log_prob(t)
     return ln_prior
