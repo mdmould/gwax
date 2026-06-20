@@ -64,8 +64,16 @@ def _improper_sample_norm(key, n, adj, vol, keep = None):
     return y
 
 
+def icar_rv(adj, y):
+    return jnp.diff(y[adj], axis = 1).squeeze()
+
 def icar_penalty(adj, y):
-    return jnp.sum(jnp.diff(y[adj], axis = 1) ** 2) / 2
+    return jnp.sum(icar_rv(adj, y) ** 2) / 2
+
+# def ln_prior_icar(n, adj, y, tau):
+#     penalty = icar_penalty(adj, y)
+#     ln_prior = jnp.log(tau) * (n - 1) / 2 - penalty * tau
+#     return ln_prior
 
 def ln_prior_icar(n, adj, y, tau):
     penalty = icar_penalty(adj, y)
@@ -85,5 +93,14 @@ def resample_tau(key, adj, y, a, b):
     return tau.reshape(shape)
 
 
-def ln_prior_icar_t(adj, y, tau, nu):
-    
+def ln_prior_icar_1d_t(y, sigma, nu):
+    ln_prior = jax.scipy.stats.t.logpdf(jnp.diff(y), nu, scale = sigma).sum()
+    # ln_prior = jax.scipy.stats.t.logpdf(t, nu).sum()
+    # y *= sigma
+    return ln_prior
+
+def ln_prior_icar_1d_multivariate_t(adj, y, sigma, nu):
+    tril = jnp.eye(y.size - 1) * sigma
+    dist = numpyro.distributions.MultivariateStudentT(nu, scale_tril = tril)
+    ln_prior = dist.log_prob(jnp.diff(y))
+    return ln_prior
