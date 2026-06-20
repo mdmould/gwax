@@ -1,19 +1,7 @@
 import jax
 import jax.numpy as jnp
+import numpyro
 
-
-def get_adjacent(*shape):
-    grid = jnp.arange(jnp.array(shape).prod()).reshape(shape)
-    pairs_list = []
-    for axis in range(len(shape)):
-        sl1 = [slice(None)] * len(shape)
-        sl2 = [slice(None)] * len(shape)
-        sl1[axis] = slice(0, -1)
-        sl2[axis] = slice(1, None)
-        a = grid[tuple(sl1)].ravel()
-        b = grid[tuple(sl2)].ravel()
-        pairs_list.append(jnp.stack([a, b], axis = 1))
-    return jnp.vstack(pairs_list)
 
 def get_bins(samples, edges):
     multi_index = [
@@ -25,6 +13,56 @@ def get_bins(samples, edges):
 
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, len(edges) - 2)
+
+
+## TODO: make adj refer to nodes after filtering by keep
+def get_adjacent(*shape, keep = None):
+    grid = jnp.arange(jnp.array(shape).prod()).reshape(shape)
+    adj = []
+    for axis in range(len(shape)):
+        sl1 = [slice(None)] * len(shape)
+        sl2 = [slice(None)] * len(shape)
+        sl1[axis] = slice(0, -1)
+        sl2[axis] = slice(1, None)
+        a = grid[tuple(sl1)].ravel()
+        b = grid[tuple(sl2)].ravel()
+        adj.append(jnp.stack([a, b], axis = 1))
+    adj = jnp.vstack(adj)
+    if keep is not None:
+        adj = adj[keep[adj].all(axis = 1)]
+    return adj
+
+
+## TODO: make adj refer to nodes after filtering by keep
+def improper_sample(key, n, adj, keep = None):
+    y = numpyro.sample(
+        f'_{key}',
+        numpyro.distributions.ImproperUniform(
+            numpyro.distributions.constraints.real, (), (n,),
+        ),
+    )
+    if keep is not None:
+        y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
+    return y
+
+def improper_sample_norm(key, n, adj, vol, keep = None):
+    y = improper_sample(key, n, adj, keep)
+    y -= jax.nn.logsumexp(y + jnp.log(vol))
+    return y
+
+def _improper_sample_norm(key, n, adj, vol, keep = None):
+    y = numpyro.sample(
+        f'_{key}',
+        numpyro.distributions.ImproperUniform(
+            numpyro.distributions.constraints.real, (), (n - 1,),
+        ),
+    )
+    y = jnp.insert(y, -1, -jnp.sum(y))
+    if keep is not None:
+        y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
+    y -= jax.nn.logsumexp(y + jnp.log(vol))
+    return y
+
 
 def icar_penalty(adj, y):
     return jnp.sum(jnp.diff(y[adj], axis = 1) ** 2) / 2
@@ -45,3 +83,7 @@ def resample_tau(key, adj, y, a, b):
     gs = jax.random.gamma(key, a + (n - 1) / 2, penalty.shape)
     tau = gs / (b + penalty)
     return tau.reshape(shape)
+
+
+def ln_prior_icar_t(adj, y, tau, nu):
+    
