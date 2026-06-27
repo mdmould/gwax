@@ -195,28 +195,44 @@ def eval_chi_p(mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2):
     coeff = mass_ratio * (4 * mass_ratio + 3) / (4 + 3 * mass_ratio)
     return np.maximum(a_1p, a_2p * coeff)
 
-def convert_effective_spin_posterior(data, chi_eff, chi_p):
+def convert_effective_spin(data, chi_eff, chi_p, pop_spins = True):
     if chi_eff or chi_p:
         mass_ratio = data['mass_2'] / data['mass_1']
-        a_1 = data.pop('a_1')
-        a_2 = data.pop('a_2')
-        cos_tilt_1 = data.pop('cos_tilt_1')
-        cos_tilt_2 = data.pop('cos_tilt_2')
+        a_1 = data['a_1']
+        a_2 = data['a_2']
+        cos_tilt_1 = data['cos_tilt_1']
+        cos_tilt_2 = data['cos_tilt_2']
+
         data['chi_eff'] = eval_chi_eff(
             mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
         )
+
         if chi_p:
             assert chi_eff
             data['chi_p'] = eval_chi_p(
                 mass_ratio, a_1, a_2, cos_tilt_1, cos_tilt_2,
             )
-            data['weight'] /= prior_chieff_chip_isotropic(
+            prior_iso_eff = prior_chieff_chip_isotropic(
                 data['chi_eff'], data['chi_p'], mass_ratio,
             )
+
         else:
-            data['weight'] /= chi_effective_prior_from_isotropic_spins(
+            prior_iso_eff = chi_effective_prior_from_isotropic_spins(
                 data['chi_eff'], mass_ratio,
             )
+
+        prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
+        data['weight'] *= prior_iso_spin
+        data['weight'] /= prior_iso_eff
+
+        if pop_spins:
+            for key in 'a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2':
+                data.pop(key)
+
+    else:
+        p_pop_phi_1_phi_2 = 1 / (2 * np.pi) ** 2 # fixed population model in phi1, phi2
+        data['weight'] *= p_pop_phi_1_phi_2
+
     return data
 
 
@@ -229,6 +245,7 @@ def get_posteriors(
     exclude = [],
     chi_eff = False,
     chi_p = False,
+    pop_spins = True,
     downsample = False,
     stack = False,
 ):
@@ -293,8 +310,8 @@ def get_posteriors(
             priors.append(prior)
         new_posteriors['weight'] = 1 / np.array(priors)
 
-        new_posteriors = convert_effective_spin_posterior(
-            new_posteriors, chi_eff, chi_p,
+        new_posteriors = convert_effective_spin(
+            new_posteriors, chi_eff, chi_p, pop_spins,
         )
 
         new_posteriors['weight'] /= np.sum(
@@ -310,8 +327,8 @@ def get_posteriors(
                 posteriors[event][analysis], posteriors[event]['catalog'],
             )
             posteriors[event][analysis]['weight'] = 1 / prior / prior.size
-            posteriors[event][analysis] = convert_effective_spin_posterior(
-                posteriors[event][analysis], chi_eff, chi_p,
+            posteriors[event][analysis] = convert_effective_spin(
+                posteriors[event][analysis], chi_eff, chi_p, pop_spins,
             )
 
     if not stack:
@@ -352,6 +369,7 @@ def get_injections(
     min_snr = 10,
     chi_eff = False,
     chi_p = False,
+    pop_spins = True,
 ):
     if catalog == 'GWTC-3':
         file = 'GWTC-4/VT/mixture-semi_o1_o2-real_o3-cartesian_spins_20250503134659UTC.hdf'
@@ -361,7 +379,7 @@ def get_injections(
         file = 'GWTC-5/VT/mixture-semi_o1_o2-real_o3_o4a_o4b-cartesian_spins_20260410130052UTC-clipped.hdf'
     file = f'{path}/lvk-data/{file}'
     print(file)
-    return _get_injections(file, min_ifar, min_snr, chi_eff, chi_p)
+    return _get_injections(file, min_ifar, min_snr, chi_eff, chi_p, pop_spins)
 
 def _get_injections(
     file,
@@ -369,6 +387,7 @@ def _get_injections(
     min_snr = 10,
     chi_eff = False,
     chi_p = False,
+    pop_spins = True,
 ):
     injections = {}
 
@@ -398,42 +417,53 @@ def _get_injections(
         s2y = d['spin2y'][found]
         s2z = d['spin2z'][found]
 
-        q = m2 / m1
-        a1 = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
-        a2 = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
-        c1 = s1z / a1
-        c2 = s2z / a2
+    # q = m2 / m1
+    # a1 = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
+    # a2 = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
+    # c1 = s1z / a1
+    # c2 = s2z / a2
+    # prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
 
-        prior *= a1 ** 2 * a2 ** 2 # (x, y, z) -> (a, cos(theta), phi)
+    (
+        injections['mass_1'],
+        injections['mass_2'],
+        injections['luminosity_distance'],
+        jac,
+    ) = source_to_detector(m1, m2, z, 67.9, 0.3065)
+    prior *= jac
 
-        m1z, m2z, dl, jac = source_to_detector(m1, m2, z, 67.9, 0.3065)
-        injections['luminosity_distance'] = dl
-        injections['mass_1'] = m1z
-        injections['mass_2'] = m2z
-        prior *= jac
+    injections['a_1'] = (s1x ** 2 + s1y ** 2 + s1z ** 2) ** 0.5
+    injections['a_2'] = (s2x ** 2 + s2y ** 2 + s2z ** 2) ** 0.5
+    injections['cos_tilt_1'] = s1z / injections['a_1']
+    injections['cos_tilt_2'] = s2z / injections['a_2']
+    prior *= injections['a_1'] ** 2 * injections['a_2'] ** 2 # (x, y, z) -> (a, cos(theta), phi)
 
-        if chi_eff or chi_p:
-            injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
-            if chi_p:
-                assert chi_eff
-                injections['chi_p'] = eval_chi_p(q, a1, a2, c1, c2)
-                prior_iso_eff = prior_chieff_chip_isotropic(
-                    injections['chi_eff'], injections['chi_p'], q,
-                )
-            else:
-                prior_iso_eff = chi_effective_prior_from_isotropic_spins(
-                    injections['chi_eff'], q,
-                )
-            prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
-            prior = prior * prior_iso_eff / prior_iso_spin
-        else:
-            injections['a_1'] = a1
-            injections['a_2'] = a2
-            injections['cos_tilt_1'] = c1
-            injections['cos_tilt_2'] = c2
-            prior *= (2 * np.pi) ** 2 # fixed population model in phi1, phi2
+    data['weight'] = 1 / prior
 
-        injections['weight'] = 1 / prior
+    data = convert_effective_spin(data, chi_eff, chi_p, pop_spins)
+
+    # if chi_eff or chi_p:
+    #     injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
+    #     if chi_p:
+    #         assert chi_eff
+    #         injections['chi_p'] = eval_chi_p(q, a1, a2, c1, c2)
+    #         prior_iso_eff = prior_chieff_chip_isotropic(
+    #             injections['chi_eff'], injections['chi_p'], q,
+    #         )
+    #     else:
+    #         prior_iso_eff = chi_effective_prior_from_isotropic_spins(
+    #             injections['chi_eff'], q,
+    #         )
+    #     prior_iso_spin = 1 / (2 * 2 * np.pi) ** 2
+    #     prior = prior * prior_iso_eff / prior_iso_spin
+    # else:
+    #     injections['a_1'] = a1
+    #     injections['a_2'] = a2
+    #     injections['cos_tilt_1'] = c1
+    #     injections['cos_tilt_2'] = c2
+    #     prior *= (2 * np.pi) ** 2 # fixed population model in phi1, phi2
+
+    # injections['weight'] = 1 / prior
 
     injections = {key: np.array(injections[key]) for key in injections}
 
