@@ -336,12 +336,16 @@ def get_posteriors(
 
     keys = ['luminosity_distance', 'mass_1', 'mass_2']
     if chi_eff:
+        if not pop_spins:
+            keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
         keys.append('chi_eff')
         if chi_p:
             keys.append('chi_p')
     else:
         keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+
     new_posteriors = {key: [] for key in keys + ['weight', 'total']}
+
     for event in posteriors:
         analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
         for analysis in analyses:
@@ -349,6 +353,7 @@ def get_posteriors(
                 new_posteriors[key] = np.concatenate([
                     new_posteriors[key], posteriors[event][analysis][key],
                 ])
+
         weight = np.concatenate([
             posteriors[event][analysis]['weight'] for analysis in analyses
         ])
@@ -357,6 +362,7 @@ def get_posteriors(
             [new_posteriors['weight'], weight],
         )
         new_posteriors['total'].append(weight.size)
+
     new_posteriors['total'] = np.array(new_posteriors['total'])
 
     return new_posteriors, events, exclude
@@ -438,9 +444,9 @@ def _get_injections(
     injections['cos_tilt_2'] = s2z / injections['a_2']
     prior *= injections['a_1'] ** 2 * injections['a_2'] ** 2 # (x, y, z) -> (a, cos(theta), phi)
 
-    data['weight'] = 1 / prior
+    injections['weight'] = 1 / prior
 
-    data = convert_effective_spin(data, chi_eff, chi_p, pop_spins)
+    injections = convert_effective_spin(injections, chi_eff, chi_p, pop_spins)
 
     # if chi_eff or chi_p:
     #     injections['chi_eff'] = eval_chi_eff(q, a1, a2, c1, c2)
