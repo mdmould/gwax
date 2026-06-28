@@ -18,10 +18,10 @@ from gwax.cosmology import source_to_detector
 def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     catalogs = (
         'GWTC-1',
-        # 'GWTC-2',
+        'GWTC-2',
         'GWTC-2.1',
         'GWTC-3',
-        # 'GWTC-4',
+        'GWTC-4',
         'GWTC-4.1',
         'GWTC-5',
     )
@@ -30,10 +30,10 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     url += ','.join(
         [
             'GWTC-1-confident,GWTC-1-marginal',
-            # 'GWTC-2',
+            'GWTC-2',
             'GWTC-2.1-confident,GWTC-2.1-marginal',
             'GWTC-3-confident,GWTC-3-marginal',
-            # 'GWTC-4.0',
+            'GWTC-4.0',
             'GWTC-4.1',
             'GWTC-5.0',
         ][:catalogs.index(catalog) + 1]
