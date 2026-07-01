@@ -3,17 +3,13 @@ import jax.numpy as jnp
 import numpyro
 
 
+def get_bins_1d(samples, edges):
+    return jnp.clip(jnp.digitize(samples, edges) - 1, 0, e.size - 2)
+
 def get_bins(samples, edges):
-    multi_index = [
-        jnp.clip(jnp.digitize(x, e) - 1, 0, e.size - 2)
-        for x, e in zip(samples, edges)
-    ]
+    multi_index = [get_bins_1d(s, e) for s, e in zip(samples, edges)]
     dims = [e.size - 1 for e in edges]
     return jnp.ravel_multi_index(multi_index, dims, mode = 'clip')
-
-def get_bins_1d(samples, edges):
-    return jnp.clip(jnp.digitize(samples, edges) - 1, 0, len(edges) - 2)
-
 
 ## TODO: make adj refer to nodes after filtering by keep
 def get_adjacent(*shape, keep = None):
@@ -70,10 +66,6 @@ def icar_rv(adj, y):
 def icar_penalty(adj, y):
     return jnp.sum(icar_rv(adj, y) ** 2) / 2
 
-# def ln_prior_icar(n, adj, y, tau):
-#     penalty = icar_penalty(adj, y)
-#     ln_prior = jnp.log(tau) * (n - 1) / 2 - penalty * tau
-#     return ln_prior
 
 def ln_prior_icar(n, adj, y, tau):
     penalty = icar_penalty(adj, y)
