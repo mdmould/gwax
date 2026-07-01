@@ -4,7 +4,7 @@ import numpyro
 
 
 def get_bins_1d(samples, edges):
-    return jnp.clip(jnp.digitize(samples, edges) - 1, 0, e.size - 2)
+    return jnp.clip(jnp.digitize(samples, edges) - 1, 0, edges.size - 2)
 
 def get_bins(samples, edges):
     multi_index = [get_bins_1d(s, e) for s, e in zip(samples, edges)]
@@ -30,7 +30,7 @@ def get_adjacent(*shape, keep = None):
 
 
 ## TODO: make adj refer to nodes after filtering by keep
-def improper_sample(name, n, adj, keep = None):
+def improper_sample(name, n, keep = None):
     y = numpyro.sample(
         name,
         numpyro.distributions.ImproperUniform(
@@ -41,12 +41,12 @@ def improper_sample(name, n, adj, keep = None):
         y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
     return y
 
-def improper_sample_norm(name, n, adj, vol, keep = None):
-    y = improper_sample(name, n, adj, keep)
+def improper_sample_norm(name, n, vol, keep = None):
+    y = improper_sample(f'_{name}', n, keep)
     y -= jax.nn.logsumexp(y + jnp.log(vol))
-    return y
+    return numpyro.deterministic(name, y)
 
-def _improper_sample_norm(name, n, adj, vol, keep = None):
+def _improper_sample_norm(name, n, vol, keep = None):
     y = numpyro.sample(
         name,
         numpyro.distributions.ImproperUniform(
