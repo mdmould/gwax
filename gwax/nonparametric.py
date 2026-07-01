@@ -34,9 +34,9 @@ def get_adjacent(*shape, keep = None):
 
 
 ## TODO: make adj refer to nodes after filtering by keep
-def improper_sample(key, n, adj, keep = None):
+def improper_sample(name, n, adj, keep = None):
     y = numpyro.sample(
-        f'_{key}',
+        name,
         numpyro.distributions.ImproperUniform(
             numpyro.distributions.constraints.real, (), (n,),
         ),
@@ -45,14 +45,14 @@ def improper_sample(key, n, adj, keep = None):
         y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
     return y
 
-def improper_sample_norm(key, n, adj, vol, keep = None):
-    y = improper_sample(key, n, adj, keep)
+def improper_sample_norm(name, n, adj, vol, keep = None):
+    y = improper_sample(name, n, adj, keep)
     y -= jax.nn.logsumexp(y + jnp.log(vol))
     return y
 
-def _improper_sample_norm(key, n, adj, vol, keep = None):
+def _improper_sample_norm(name, n, adj, vol, keep = None):
     y = numpyro.sample(
-        f'_{key}',
+        name,
         numpyro.distributions.ImproperUniform(
             numpyro.distributions.constraints.real, (), (n - 1,),
         ),
