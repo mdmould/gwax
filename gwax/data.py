@@ -92,7 +92,7 @@ def get_event_catalog_and_file(path, event):
         catalog = list(files)[0]
     return catalog, files[catalog]
 
-def waveform_priority(event, catalog, analyses):
+def default_waveform_priority(event, catalog, analyses):
     event_specific = dict(
         GW170817 = ['IMRPhenomPv2NRT_highSpin_posterior'],
         GW190425 = ['C01:IMRPhenomPv2_NRTidal:HighSpin'],
@@ -123,7 +123,7 @@ def waveform_priority(event, catalog, analyses):
         else:
             return ['C00:IMRPhenomXPHM-SpinTaylor', 'C00:SEOBNRv5PHM']
 
-def get_event(path, event, keys):
+def get_event(path, event, keys, waveform_priority = default_waveform_priority):
     swap = dict(
         a_1 = 'spin1',
         a_2 = 'spin2',
@@ -244,6 +244,7 @@ def get_posteriors(
     bbh = True,
     er = False,
     exclude = [],
+    waveform_priority = default_waveform_priority,
     chi_eff = False,
     chi_p = False,
     pop_spins = True,
@@ -292,7 +293,9 @@ def get_posteriors(
             print(f'excluding {event}: in exclude list')
             continue
         try:
-            posteriors[event] = get_event(path, event, keys)
+            posteriors[event] = get_event(
+                path, event, keys, waveform_priority = waveform_priority,
+            )
         except:
             exclude.append(event)
             print(f'Could not get samples for {event}, excluding...')
