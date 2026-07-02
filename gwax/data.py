@@ -16,9 +16,7 @@ from gwax.cosmology import source_to_detector
 import h5ify
 
 
-def get_events_list(
-    catalog, min_ifar = 1, bbh = True, er = False, cache = True, path = '.',
-):
+def get_events_list(catalog, min_ifar = 1, bbh = True, er = False, path = None):
     catalogs = (
         'GWTC-1',
         # 'GWTC-2',
@@ -30,14 +28,14 @@ def get_events_list(
     )
     assert catalog in catalogs
 
-    cache_file = f'{path}/lvk-data/cache/events'
+    cache_file = f'{path}/events'
     cache_file += f'-{catalog}'
     cache_file += f'-ifar{min_ifar}'
     if bbh: cache_file += '-bbh'
     if er: cache_file += '-er'
     cache_file += '.txt'
 
-    if cache and os.path.exists(cache_file):
+    if path is not None and os.path.exists(cache_file):
         print('loading cache:', cache_file)
         events = np.loadtxt(cache_file, dtype = str)
         return sorted(map(str, events))
@@ -63,7 +61,7 @@ def get_events_list(
     if not er and not bbh and 'GW230518_125908' in events:
         events.remove('GW230518_125908')
 
-    if cache:
+    if path is not None:
         np.savetxt(cache_file, events, fmt = '%s')
     else:
         os.system(f'rm {cache_file}')
@@ -293,7 +291,9 @@ def get_posteriors(
         return h5ify.load(cache_file)
 
     if type(catalog) is str:
-        events = get_events_list(catalog, min_ifar, bbh, er)
+        events = get_events_list(
+            catalog, min_ifar, bbh, er, path = f'{path}/lvk-data/cache',
+        )
     else:
         events = catalog
 
