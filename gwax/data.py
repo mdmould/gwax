@@ -13,6 +13,7 @@ import tqdm
 import wcosmo; wcosmo.disable_units()
 
 from gwax.cosmology import source_to_detector
+import h5ify
 
 
 def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
@@ -248,7 +249,27 @@ def get_posteriors(
     pop_spins = True,
     downsample = False,
     stack = False,
+    cache = True,
 ):
+    cache_file = f'{path}/lvk-data/cache/posteriors'
+    if type(catalog) is str: cache_file += f'-{catalog}'
+    cache_file += f'-ifar{min_ifar}'
+    if bbh: cache_file += '-bbh'
+    if er: cache_file += '-er'
+    if len(exclude) > 0:
+        cache_file += '-exclude'
+        for event in exclude:
+            cache_file += f'-{event}'
+    if chi_eff: cache_file += '-chi_eff'
+    if chi_p: cache_file += '-chi_p'
+    if downsample: cache_file += '-downsample'
+    if stack: cache_file += '-stack'
+    cache_file += '.h5'
+
+    if cache and os.path.exists(cache_file):
+        print('loading cache:', cache_file)
+        return h5ify.load(cache_file)
+
     if type(catalog) is str:
         events = get_events_list(catalog, min_ifar, bbh, er)
     else:
@@ -280,6 +301,7 @@ def get_posteriors(
     exclude = sorted(set(exclude))
 
     if downsample:
+
         total = np.inf
         for event in posteriors:
             analyses = set(posteriors[event]) - {'catalog', 'file'}
@@ -318,54 +340,66 @@ def get_posteriors(
             new_posteriors['weight'], axis = 1, keepdims = True,
         )
 
-        return new_posteriors, events, exclude
+        # return new_posteriors, events, exclude
 
-    for event in posteriors:
-        analyses = set(posteriors[event]) - {'catalog', 'file'}
-        for analysis in analyses:
-            prior = compute_initial_prior(
-                posteriors[event][analysis], posteriors[event]['catalog'],
-            )
-            posteriors[event][analysis]['weight'] = 1 / prior / prior.size
-            posteriors[event][analysis] = convert_effective_spin(
-                posteriors[event][analysis], chi_eff, chi_p, pop_spins,
-            )
-
-    if not stack:
-        return posteriors, events, exclude
-
-    keys = ['luminosity_distance', 'mass_1', 'mass_2']
-    if chi_eff:
-        if not pop_spins:
-            keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
-        keys.append('chi_eff')
-        if chi_p:
-            keys.append('chi_p')
     else:
-        keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
 
-    new_posteriors = {key: [] for key in keys + ['weight', 'total']}
+        for event in posteriors:
+            analyses = set(posteriors[event]) - {'catalog', 'file'}
+            for analysis in analyses:
+                prior = compute_initial_prior(
+                    posteriors[event][analysis], posteriors[event]['catalog'],
+                )
+                posteriors[event][analysis]['weight'] = 1 / prior / prior.size
+                posteriors[event][analysis] = convert_effective_spin(
+                    posteriors[event][analysis], chi_eff, chi_p, pop_spins,
+                )
 
-    for event in posteriors:
-        analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
-        for analysis in analyses:
-            for key in keys:
-                new_posteriors[key] = np.concatenate([
-                    new_posteriors[key], posteriors[event][analysis][key],
+        new_posteriors = posteriors
+
+        if stack:
+
+            keys = ['luminosity_distance', 'mass_1', 'mass_2']
+            if chi_eff:
+                if not pop_spins:
+                    keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+                keys.append('chi_eff')
+                if chi_p:
+                    keys.append('chi_p')
+            else:
+                keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+
+            new_posteriors = {key: [] for key in keys + ['weight', 'total']}
+
+            for event in posteriors:
+                analyses = sorted(set(posteriors[event]) - {'catalog', 'file'})
+                for analysis in analyses:
+                    for key in keys:
+                        new_posteriors[key] = np.concatenate([
+                            new_posteriors[key],
+                            posteriors[event][analysis][key],
+                        ])
+
+                weight = np.concatenate([
+                    posteriors[event][analysis]['weight']
+                    for analysis in analyses
                 ])
+                weight /= weight.sum()
+                new_posteriors['weight'] = np.concatenate(
+                    [new_posteriors['weight'], weight],
+                )
+                new_posteriors['total'].append(weight.size)
 
-        weight = np.concatenate([
-            posteriors[event][analysis]['weight'] for analysis in analyses
-        ])
-        weight /= weight.sum()
-        new_posteriors['weight'] = np.concatenate(
-            [new_posteriors['weight'], weight],
-        )
-        new_posteriors['total'].append(weight.size)
+            new_posteriors['total'] = np.array(new_posteriors['total'])
 
-    new_posteriors['total'] = np.array(new_posteriors['total'])
+    new_posteriors['events'] = events
+    new_posteriors['excluded'] = exclude
 
-    return new_posteriors, events, exclude
+    if cache:
+        print('saving cache:', cache_file)
+        h5ify.save(cache_file, new_posteriors)
+
+    return new_posteriors
 
 
 def get_injections(
@@ -376,16 +410,41 @@ def get_injections(
     chi_eff = False,
     chi_p = False,
     pop_spins = True,
+    cache = True,
 ):
+    cache_file = f'{path}/lvk-data/cache/injections'
+    cache_file += f'-{catalog}'
+    cache_file += f'-ifar{min_ifar}'
+    cache_file += f'-snr{min_snr}'
+    if chi_eff: cache_file += '-chi_eff'
+    if chi_p: cache_file += '-chi_p'
+    cache_file += '.h5'
+
+    if cache and os.path.exists(cache_file):
+        print('loading cache:', cache_file)
+        return h5ify.load(cache_file)
+
     if catalog == 'GWTC-3':
         file = 'GWTC-4/VT/mixture-semi_o1_o2-real_o3-cartesian_spins_20250503134659UTC.hdf'
     elif catalog == 'GWTC-4':
         file = 'GWTC-4/VT/mixture-semi_o1_o2-real_o3_o4a-cartesian_spins_20250503134659UTC.hdf'
     elif catalog == 'GWTC-5':
         file = 'GWTC-5/VT/mixture-semi_o1_o2-real_o3_o4a_o4b-cartesian_spins_20260410130052UTC-clipped.hdf'
+    else:
+        print(catalog, 'not available')
+
     file = f'{path}/lvk-data/{file}'
     print(file)
-    return _get_injections(file, min_ifar, min_snr, chi_eff, chi_p, pop_spins)
+
+    injections = _get_injections(
+        file, min_ifar, min_snr, chi_eff, chi_p, pop_spins,
+    )
+
+    if cache:
+        print('saving cache:', cache_file)
+        h5ify.save(cache_file, injections)
+
+    return injections
 
 def _get_injections(
     file,
