@@ -16,7 +16,9 @@ from gwax.cosmology import source_to_detector
 import h5ify
 
 
-def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
+def get_events_list(
+    catalog, min_ifar = 1, bbh = True, er = False, cache = True, path = '.',
+):
     catalogs = (
         'GWTC-1',
         # 'GWTC-2',
@@ -27,6 +29,19 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
         'GWTC-5',
     )
     assert catalog in catalogs
+
+    cache_file = f'{path}/lvk-data/cache/events'
+    cache_file += f'-{catalog}'
+    cache_file += f'-ifar{min_ifar}'
+    if bbh: cache_file += '-bbh'
+    if er: cache_file += '-er'
+    cache_file += '.txt'
+
+    if cache and os.path.exists(cache_file):
+        print('loading cache:', cache_file)
+        events = np.loadtxt(cache_file, dtype = str)
+        return sorted(map(str, events))
+
     url = 'https://gwosc.org/eventapi/ascii/query/show?release='
     url += ','.join(
         [
@@ -40,13 +55,19 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
         ][:catalogs.index(catalog) + 1]
     )
     url += f'&min-mass-2-source={3 if bbh else 0}&max-far={1 / min_ifar}'
-    temp = f'./events-{time.time_ns()}.txt'
-    os.system(f'wget -O {temp} "{url}"')
-    events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
-    os.system(f'rm {temp}')
+
+    os.system(f'wget -O {cache_file} "{url}"')
+    events = np.loadtxt(cache_file, dtype = str, skiprows = 1, usecols = 1)
     events = sorted(map(str, np.unique(events)))
+
     if not er and not bbh and 'GW230518_125908' in events:
         events.remove('GW230518_125908')
+
+    if cache:
+        np.savetxt(cache_file, events, fmt = '%s')
+    else:
+        os.system(f'rm {cache_file}')
+
     return events
 
 def get_event_file(path, catalog, event):
