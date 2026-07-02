@@ -45,7 +45,7 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False):
     events = np.loadtxt(temp, dtype = str, skiprows = 1, usecols = 1)
     os.system(f'rm {temp}')
     events = sorted(map(str, np.unique(events)))
-    if not er and not bbh:
+    if not er and not bbh and 'GW230518_125908' in events:
         events.remove('GW230518_125908')
     return events
 
