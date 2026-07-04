@@ -363,8 +363,6 @@ def get_posteriors(
             new_posteriors['weight'], axis = 1, keepdims = True,
         )
 
-        # return new_posteriors, events, exclude
-
     else:
 
         for event in posteriors:
@@ -373,7 +371,7 @@ def get_posteriors(
                 prior = compute_initial_prior(
                     posteriors[event][analysis], posteriors[event]['catalog'],
                 )
-                posteriors[event][analysis]['weight'] = 1 / prior / prior.size
+                posteriors[event][analysis]['weight'] = 1 / prior
                 posteriors[event][analysis] = convert_effective_spin(
                     posteriors[event][analysis], chi_eff, chi_p, pop_spins,
                 )
@@ -404,7 +402,10 @@ def get_posteriors(
                         ])
 
                 weight = np.concatenate([
-                    posteriors[event][analysis]['weight']
+                    (
+                        posteriors[event][analysis]['weight']
+                        / posterior[event][analysis]['weight'].size
+                    )
                     for analysis in analyses
                 ])
                 weight /= weight.sum()
