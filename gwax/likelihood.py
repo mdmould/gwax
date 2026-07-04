@@ -28,13 +28,12 @@ def estimator_from_ln(ln_weights, n, axis = -1):
     return jnp.exp(ln_mean), jnp.exp(jnp.log(variance) + 2 * ln_mean), ess
 
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
+    num_obs, total = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, posteriors['total'])
+    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
     ln_vt, variance_vt, ess_vt = ln_estimator(vt_weights, injections['total'])
     ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
-    # num_obs = posteriors['total'].size
-    num_obs = posteriors['weight'].shape[0]
     variance_pe = pe_variances.sum()
     variance_vt *= num_obs ** 2
     return dict(
@@ -51,9 +50,10 @@ def resample_rate(key, num_obs, vt):
     return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
 
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
+    num_obs, total = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, posteriors['total'])
+    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
     rate, variance_vt, ess_vt = estimator(vt_weights, injections['total'])
     num = rate * injections['time']
     variance_pe = pe_variances.sum()
