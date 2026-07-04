@@ -404,7 +404,7 @@ def get_posteriors(
                 weight = np.concatenate([
                     (
                         posteriors[event][analysis]['weight']
-                        / posterior[event][analysis]['weight'].size
+                        / posteriors[event][analysis]['weight'].size
                     )
                     for analysis in analyses
                 ])
