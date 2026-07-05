@@ -413,9 +413,9 @@ def get_posteriors(
                 new_posteriors['weight'] = np.concatenate(
                     [new_posteriors['weight'], weight],
                 )
-                new_posteriors['total'].append(weight.size)
-
-            new_posteriors['total'] = np.array(new_posteriors['total'])
+                new_posteriors['total'] = np.append(
+                    new_posteriors['total'], weight.size,
+                )
 
     new_posteriors['events'] = events
     new_posteriors['excluded'] = exclude
