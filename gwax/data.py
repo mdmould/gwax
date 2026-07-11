@@ -267,6 +267,7 @@ def get_posteriors(
     chi_eff = False,
     chi_p = False,
     pop_spins = True,
+    extra_keys = [],
     downsample = False,
     stack = False,
     cache = True,
@@ -307,8 +308,10 @@ def get_posteriors(
         'a_2',
         'cos_tilt_1',
         'cos_tilt_2',
-    ]
+    ] + extra_keys
+
     posteriors = {}
+
     for event in tqdm.tqdm(events):
         if event in exclude:
             print(f'excluding {event}: in exclude list')
@@ -435,6 +438,7 @@ def get_injections(
     chi_eff = False,
     chi_p = False,
     pop_spins = True,
+    extra_keys = [],
     cache = True,
 ):
     cache_file = f'{path}/lvk-data/cache/injections'
@@ -462,7 +466,7 @@ def get_injections(
     print(file)
 
     injections = _get_injections(
-        file, min_ifar, min_snr, chi_eff, chi_p, pop_spins,
+        file, min_ifar, min_snr, chi_eff, chi_p, pop_spins, extra_keys,
     )
 
     if cache:
@@ -478,6 +482,7 @@ def _get_injections(
     chi_eff = False,
     chi_p = False,
     pop_spins = True,
+    extra_keys = [],
 ):
     injections = {}
 
@@ -491,6 +496,9 @@ def _get_injections(
         far = np.min([d[k] for k in d.dtype.names if 'far' in k], axis = 0)
         snr = d['semianalytic_observed_phase_maximized_snr_net']
         found = (far < 1 / min_ifar) | (snr > min_snr)
+
+        for key in extra_keys:
+            injections[key] = d[key][found]
 
         prior = np.exp(d[
             'lnpdraw_mass1_source_mass2_source_redshift'
