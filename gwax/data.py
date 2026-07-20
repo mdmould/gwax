@@ -498,7 +498,10 @@ def _get_injections(
         found = (far < 1 / min_ifar) | (snr > min_snr)
 
         for key in extra_keys:
-            injections[key] = d[key][found]
+            if key.lower() == 'far':
+                injections[key] = far[found]
+            else:
+                injections[key] = d[key][found]
 
         prior = np.exp(d[
             'lnpdraw_mass1_source_mass2_source_redshift'
