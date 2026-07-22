@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
 
+from .util import cumulative_trapezoid
+
 
 def cubic_filter(x):
     return (3 - 2 * x) * x ** 2 * (0 <= x) * (x <= 1) + (1 < x)
