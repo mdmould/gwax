@@ -393,6 +393,7 @@ def get_posteriors(
                     keys.append('chi_p')
             else:
                 keys += ['a_1', 'a_2', 'cos_tilt_1', 'cos_tilt_2']
+            keys += extra_keys
 
             new_posteriors = {key: [] for key in keys + ['weight', 'total']}
 
