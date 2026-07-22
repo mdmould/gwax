@@ -3,6 +3,8 @@ import jax.numpy as jnp
 import jax_tqdm
 import bilby
 
+from .util import logcumsumexp
+
 
 def estimator(weights, n, axis = -1):
     mean = jnp.sum(weights, axis = axis) / n
