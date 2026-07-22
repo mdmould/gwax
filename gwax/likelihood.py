@@ -27,47 +27,6 @@ def estimator_from_ln(ln_weights, n, axis = -1):
     ln_mean, variance, ess = ln_estimator_from_ln(ln_weights, n, axis = axis)
     return jnp.exp(ln_mean), jnp.exp(jnp.log(variance) + 2 * ln_mean), ess
 
-def shape_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, total = posteriors['weight'].shape
-    pe_weights = density(posteriors, parameters) * posteriors['weight']
-    vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
-    ln_vt, variance_vt, ess_vt = ln_estimator(vt_weights, injections['total'])
-    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
-    variance_pe = pe_variances.sum()
-    variance_vt *= num_obs ** 2
-    return dict(
-        ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
-        ln_vt = ln_vt,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
-    )
-
-def resample_rate(key, num_obs, vt):
-    return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
-
-def rate_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, total = posteriors['weight'].shape
-    pe_weights = density(posteriors, parameters) * posteriors['weight']
-    vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
-    rate, variance_vt, ess_vt = estimator(vt_weights, injections['total'])
-    num = rate * injections['time']
-    variance_pe = pe_variances.sum()
-    variance_vt *= injections['time'] ** 2
-    return dict(
-        ln_likelihood = ln_lkls.sum() - num,
-        num = num,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
-    )
-
 
 def estimator_stacked(weights, n):
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
@@ -86,10 +45,6 @@ def estimator_stacked(weights, n):
 def ln_estimator_stacked(weights, n):
     means, variances, ess = estimator_stacked(weights, n)
     return jnp.log(means), variances / means ** 2, ess
-
-def logcumsumexp(x, axis = None):
-    c = jnp.max(x)
-    return c + jnp.log(jnp.cumsum(jnp.exp(x - c), axis = axis))
 
 def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
     idxs = jnp.insert(jnp.cumsum(n), 0, 0)
@@ -114,6 +69,49 @@ def ln_estimator_and_variance_stacked_from_ln(ln_weights, n):
 def estimator_and_variance_stacked_from_ln(ln_weights, n):
     ln_means, variances, ess = ln_estimator_stacked_from_ln(ln_weights, n)
     return jnp.exp(ln_means), jnp.exp(jnp.log(variances) + 2 * ln_means), ess
+
+
+def resample_rate(key, num_obs, vt):
+    return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
+
+def shape_likelihood_ingredients(posteriors, injections, density, parameters):
+    num_obs, total = posteriors['weight'].shape
+    pe_weights = density(posteriors, parameters) * posteriors['weight']
+    vt_weights = density(injections, parameters) * injections['weight']
+    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
+    ln_vt, variance_vt, ess_vt = ln_estimator(vt_weights, injections['total'])
+    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
+    variance_pe = pe_variances.sum()
+    variance_vt *= num_obs ** 2
+    return dict(
+        ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
+        ln_vt = ln_vt,
+        variance = variance_pe + variance_vt,
+        variance_pe = variance_pe,
+        variance_vt = variance_vt,
+        ess_pe = ess_pe,
+        ess_vt = ess_vt,
+    )
+
+def rate_likelihood_ingredients(posteriors, injections, density, parameters):
+    num_obs, total = posteriors['weight'].shape
+    pe_weights = density(posteriors, parameters) * posteriors['weight']
+    vt_weights = density(injections, parameters) * injections['weight']
+    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
+    rate, variance_vt, ess_vt = estimator(vt_weights, injections['total'])
+    num = rate * injections['time']
+    variance_pe = pe_variances.sum()
+    variance_vt *= injections['time'] ** 2
+    return dict(
+        ln_likelihood = ln_lkls.sum() - num,
+        num = num,
+        variance = variance_pe + variance_vt,
+        variance_pe = variance_pe,
+        variance_vt = variance_vt,
+        ess_pe = ess_pe,
+        ess_vt = ess_vt,
+    )
+
 
 def shape_likelihood_ingredients_stacked(
     posteriors, injections, density, parameters,
@@ -215,7 +213,6 @@ class BilbyLikelihood(bilby.Likelihood):
         return jax.jit(self._likelihood_ingredients)(
             self.posteriors, self.injections, parameters,
         )
-
 
 def postprocess_bilby(result, likelihood):
     n = len(result.posterior)
