@@ -28,7 +28,7 @@ def get_events_list(catalog, min_ifar = 1, bbh = True, er = False, path = None):
     )
     assert catalog in catalogs
 
-    cache_file = f'{path}/events'
+    cache_file = f'{'.' if path is None else path}/events'
     cache_file += f'-{catalog}'
     cache_file += f'-ifar{min_ifar}'
     if bbh: cache_file += '-bbh'
