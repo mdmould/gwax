@@ -45,12 +45,13 @@ def improper_sample(name, n, vol = None):
         )
     else:
         y = numpyro.sample(
-            name,
+            f'_{name}',
             numpyro.distributions.ImproperUniform(
                 numpyro.distributions.constraints.zero_sum(), (), (n,),
             ),
         )
         y -= jax.nn.logsumexp(y + jnp.log(vol))
+        y = numpyro.deterministic(name, y)
     return y
 
 # def improper_sample(name, n, keep = None):
