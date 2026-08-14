@@ -6,12 +6,15 @@ import numpyro
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, edges.size - 2)
 
-def get_bins(samples, edges):
+def get_bins(samples, edges, keep = None):
     multi_index = [get_bins_1d(s, e) for s, e in zip(samples, edges)]
     dims = [e.size - 1 for e in edges]
-    return jnp.ravel_multi_index(multi_index, dims, mode = 'clip')
+    idx = jnp.ravel_multi_index(multi_index, dims, mode = 'clip')
+    if keep is not None:
+        idx_map = jnp.cumsum(keep) - 1
+        idx = idx_map[idx]
+    return idx
 
-## TODO: make adj refer to nodes after filtering by keep
 def get_adjacent(*shape, keep = None):
     grid = jnp.arange(jnp.array(shape).prod()).reshape(shape)
     adj = []
@@ -26,38 +29,56 @@ def get_adjacent(*shape, keep = None):
     adj = jnp.vstack(adj)
     if keep is not None:
         adj = adj[keep[adj].all(axis = 1)]
+        adj = idx_map[adj]
     return adj
 
 
-## TODO: make adj refer to nodes after filtering by keep
-def improper_sample(name, n, keep = None):
-    y = numpyro.sample(
-        name,
-        numpyro.distributions.ImproperUniform(
-            numpyro.distributions.constraints.real, (), (n,),
-        ),
-    )
-    if keep is not None:
-        y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
+def improper_sample(name, n, vol = None):
+    if vol is None:
+        y = numpyro.sample(
+            name,
+            numpyro.distributions.ImproperUniform(
+                numpyro.distributions.constraints.real, (), (n,),
+            ),
+        )
+    else:
+        y = numpyro.sample(
+            name,
+            numpyro.distributions.ImproperUniform(
+                numpyro.distributions.constraints.zero_sum(), (), (n,),
+            ),
+        )
+        y -= jax.nn.logsumexp(y + jnp.log(vol))
     return y
 
-def improper_sample_norm(name, n, vol, keep = None):
-    y = improper_sample(f'_{name}', n, keep)
-    y -= jax.nn.logsumexp(y + jnp.log(vol))
-    return numpyro.deterministic(name, y)
+# def improper_sample(name, n, keep = None):
+#     y = numpyro.sample(
+#         name,
+#         numpyro.distributions.ImproperUniform(
+#             numpyro.distributions.constraints.real, (), (n,),
+#         ),
+#     )
+#     if keep is not None:
+#         y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
+#     return y
 
-def _improper_sample_norm(name, n, vol, keep = None):
-    y = numpyro.sample(
-        name,
-        numpyro.distributions.ImproperUniform(
-            numpyro.distributions.constraints.real, (), (n - 1,),
-        ),
-    )
-    y = jnp.insert(y, -1, -jnp.sum(y))
-    if keep is not None:
-        y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
-    y -= jax.nn.logsumexp(y + jnp.log(vol))
-    return y
+# def improper_sample_norm(name, n, vol, keep = None):
+#     y = improper_sample(f'_{name}', n, keep)
+#     y -= jax.nn.logsumexp(y + jnp.log(vol))
+#     return numpyro.deterministic(name, y)
+
+# def _improper_sample_norm(name, n, vol, keep = None):
+#     y = numpyro.sample(
+#         name,
+#         numpyro.distributions.ImproperUniform(
+#             numpyro.distributions.constraints.real, (), (n - 1,),
+#         ),
+#     )
+#     y = jnp.insert(y, -1, -jnp.sum(y))
+#     if keep is not None:
+#         y = jnp.full_like(keep.astype(float), -jnp.inf).at[keep].set(y)
+#     y -= jax.nn.logsumexp(y + jnp.log(vol))
+#     return y
 
 
 def icar_rv(adj, y):
