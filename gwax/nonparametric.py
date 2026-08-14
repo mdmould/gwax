@@ -4,7 +4,7 @@ import numpyro
 
 
 def keep_idx_map(keep):
-    return jnp.cumsum(keep) - 1
+    return jnp.clip(jnp.cumsum(keep) - 1, 0, keep.sum() - 1)
 
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, edges.size - 2)
