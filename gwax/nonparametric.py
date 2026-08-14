@@ -3,6 +3,9 @@ import jax.numpy as jnp
 import numpyro
 
 
+def keep_idx_map(keep):
+    return jnp.cumsum(keep) - 1
+
 def get_bins_1d(samples, edges):
     return jnp.clip(jnp.digitize(samples, edges) - 1, 0, edges.size - 2)
 
@@ -11,8 +14,7 @@ def get_bins(samples, edges, keep = None):
     dims = [e.size - 1 for e in edges]
     idx = jnp.ravel_multi_index(multi_index, dims, mode = 'clip')
     if keep is not None:
-        idx_map = jnp.cumsum(keep) - 1
-        idx = idx_map[idx]
+        idx = keep_idx_map(keep)[idx]
     return idx
 
 def get_adjacent(*shape, keep = None):
@@ -29,7 +31,7 @@ def get_adjacent(*shape, keep = None):
     adj = jnp.vstack(adj)
     if keep is not None:
         adj = adj[keep[adj].all(axis = 1)]
-        adj = idx_map[adj]
+        adj = keep_idx_map(keep)[adj]
     return adj
 
 
