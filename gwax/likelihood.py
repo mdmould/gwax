@@ -73,45 +73,38 @@ def estimator_and_variance_stacked_from_ln(ln_weights, n):
     return jnp.exp(ln_means), jnp.exp(jnp.log(variances) + 2 * ln_means), ess
 
 
-def resample_rate(key, num_obs, vt):
-    return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
-
 def shape_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, total = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
-    ln_vt, variance_vt, ess_vt = ln_estimator(vt_weights, injections['total'])
-    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
-    variance_pe = pe_variances.sum()
-    variance_vt *= num_obs ** 2
+    ln_lkls, pe_variances, pe_ess = ln_estimator(pe_weights, posteriors['total'])
+    ln_vt, vt_variance, vt_ess = ln_estimator(vt_weights, injections['total'])
+    num_obs = posteriors['weight'].shape[0]
+    vt_variance *= num_obs ** 2
     return dict(
         ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
-        ln_vt = ln_vt,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
+        vt = jnp.exp(ln_vt) * injections['time'],
+        variance = pe_variances.sum() + vt_variance,
+        pe_variances = pe_variances,
+        vt_variance = vt_variance,
+        pe_ess = pe_ess,
+        vt_ess = vt_ess,
     )
 
 def rate_likelihood_ingredients(posteriors, injections, density, parameters):
-    num_obs, total = posteriors['weight'].shape
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator(pe_weights, total)
-    rate, variance_vt, ess_vt = estimator(vt_weights, injections['total'])
+    ln_lkls, pe_variances, pe_ess = ln_estimator(pe_weights, posteriors['total'])
+    rate, vt_variance, vt_ess = estimator(vt_weights, injections['total'])
     num = rate * injections['time']
-    variance_pe = pe_variances.sum()
-    variance_vt *= injections['time'] ** 2
+    vt_variance *= injections['time'] ** 2
     return dict(
         ln_likelihood = ln_lkls.sum() - num,
         num = num,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
+        variance = pe_variances.sum() + vt_variance,
+        pe_variances = pe_variances,
+        vt_variance = vt_variance,
+        pe_ess = pe_ess,
+        vt_ess = vt_ess,
     )
 
 
@@ -120,20 +113,18 @@ def shape_likelihood_ingredients_stacked(
 ):
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator_stacked(pe_weights, posteriors['total'])
-    ln_vt, variance_vt, ess_vt = ln_estimator(vt_weights, injections['total'])
-    ln_vt += jnp.log(injections['time']) # dependence of variance on T cancels
+    ln_lkls, pe_variances, pe_ess = ln_estimator_stacked(pe_weights, posteriors['total'])
+    ln_vt, vt_variance, vt_ess = ln_estimator(vt_weights, injections['total'])
     num_obs = posteriors['total'].size
-    variance_pe = pe_variances.sum()
-    variance_vt *= num_obs ** 2
+    vt_variance *= num_obs ** 2
     return dict(
         ln_likelihood = ln_lkls.sum() - ln_vt * num_obs,
-        ln_vt = ln_vt,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
+        vt = jnp.exp(ln_vt) * injections['time'],
+        variance = pe_variances.sum() + vt_variance,
+        pe_variances = pe_variances,
+        vt_variance = vt_variance,
+        pe_ess = pe_ess,
+        vt_ess = vt_ess,
     )
 
 def rate_likelihood_ingredients_stacked(
@@ -141,19 +132,18 @@ def rate_likelihood_ingredients_stacked(
 ):
     pe_weights = density(posteriors, parameters) * posteriors['weight']
     vt_weights = density(injections, parameters) * injections['weight']
-    ln_lkls, pe_variances, ess_pe = ln_estimator_stacked(pe_weights, posteriors['total'])
-    rate, variance_vt, ess_vt = estimator(vt_weights, injections['total'])
+    ln_lkls, pe_variances, pe_ess = ln_estimator_stacked(pe_weights, posteriors['total'])
+    rate, vt_variance, vt_ess = estimator(vt_weights, injections['total'])
     num = rate * injections['time']
-    variance_pe = pe_variances.sum()
-    variance_vt *= injections['time'] ** 2
+    vt_variance *= injections['time'] ** 2
     return dict(
         ln_likelihood = ln_lkls.sum() - num,
         num = num,
-        variance = variance_pe + variance_vt,
-        variance_pe = variance_pe,
-        variance_vt = variance_vt,
-        ess_pe = ess_pe,
-        ess_vt = ess_vt,
+        variance = pe_variances.sum() + vt_variance,
+        pe_variances = pe_variances,
+        vt_variance = vt_variance,
+        pe_ess = pe_ess,
+        vt_ess = vt_ess,
     )
 
 
@@ -216,7 +206,10 @@ class BilbyLikelihood(bilby.Likelihood):
             self.posteriors, self.injections, parameters,
         )
 
-def postprocess_bilby(result, likelihood):
+def resample_rate(key, num_obs, vt):
+    return jax.random.gamma(key, num_obs, shape = jnp.shape(vt)) / vt
+
+def postprocess_bilby(key, result, likelihood):
     n = len(result.posterior)
     posterior = {k: jnp.array(v) for k, v in result.posterior.items()}
 
@@ -227,17 +220,16 @@ def postprocess_bilby(result, likelihood):
 
     ingredients = jax.lax.scan(single, None, (jnp.arange(n), posterior))[1]
 
-    if 'ln_vt' in ingredients:
+    if 'vt' in ingredients:
         ingredients['rate'] = resample_rate(
-            jax.random.key(0),
-            likelihood.num_obs,
-            jnp.exp(ingredients['ln_vt']),
+            key, likelihood.num_obs, ingredients['vt'],
         )
 
-    for k in ingredients:
-        result.posterior[k] = ingredients[k]
+    # for k in ingredients:
+    #     result.posterior[k] = ingredients[k]
 
-    return result
+    # return result
+    return {**posterior, **ingredients}
 
 def prior_fraction(likelihood, priors, n = 10_000):
     samples = priors.sample(n)
