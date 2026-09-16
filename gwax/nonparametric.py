@@ -35,7 +35,7 @@ def get_adjacent(*shape, keep = None):
     return adj
 
 
-def improper_sample(name, n, vol = None):
+def improper_sample(name, n = None, vol = None):
     if vol is None:
         y = numpyro.sample(
             name,
@@ -47,7 +47,7 @@ def improper_sample(name, n, vol = None):
         y = numpyro.sample(
             f'_{name}',
             numpyro.distributions.ImproperUniform(
-                numpyro.distributions.constraints.zero_sum(), (), (n,),
+                numpyro.distributions.constraints.zero_sum(), (), (vol.size,),
             ),
         )
         y -= jax.nn.logsumexp(y + jnp.log(vol))
@@ -91,14 +91,14 @@ def icar_penalty(adj, y):
     return jnp.sum(icar_rv(adj, y) ** 2) / 2
 
 
-def ln_prior_icar(n, adj, y, tau):
+def ln_prior_icar(adj, y, tau):
     penalty = icar_penalty(adj, y)
-    ln_prior = jnp.log(tau) * (n - 1) / 2 - penalty * tau
+    ln_prior = jnp.log(tau) * (y.size - 1) / 2 - penalty * tau
     return ln_prior
 
-def ln_prior_icar_gamma(n, adj, y, a, b):
+def ln_prior_icar_gamma(adj, y, a, b):
     penalty = icar_penalty(adj, y)
-    ln_prior = -(a + (n - 1) / 2) * jnp.log(b + penalty)
+    ln_prior = -(a + (y.size - 1) / 2) * jnp.log(b + penalty)
     return ln_prior
 
 def resample_tau(key, adj, y, a, b):
