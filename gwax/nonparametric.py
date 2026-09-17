@@ -157,7 +157,7 @@ def improper_sample_unwhitened_regular_graph(
     n = eigenvalues.size
 
     z = numpyro.sample(
-        f'z_{name}',
+        f'_{name}',
         numpyro.distributions.ImproperUniform(
             numpyro.distributions.constraints.real, (), (n - 1,),
         ),
@@ -166,7 +166,7 @@ def improper_sample_unwhitened_regular_graph(
 
     if vol is None:
         mu = numpyro.sample(
-            f'mu_{name}',
+            f'_mu_{name}',
             numpyro.distributions.ImproperUniform(
                 numpyro.distributions.constraints.real, (), (),
             ),
@@ -183,7 +183,7 @@ def improper_sample_unwhitened_regular_graph(
     if vol is not None:
         y -= jax.nn.logsumexp(y + jnp.log(vol))
 
-    return numpyro.deterministic(f'y_{name}', y)
+    return numpyro.deterministic(name, y)
 
 def graph_laplacian(shape, keep = None):
     adjacent = get_adjacent(shape, keep)
@@ -211,7 +211,7 @@ def improper_sample_unwhitened(
     assert n == m
 
     z = numpyro.sample(
-        f'z_{name}',
+        f'_{name}',
         numpyro.distributions.ImproperUniform(
             numpyro.distributions.constraints.real, (), (n - 1,),
         ),
@@ -222,7 +222,7 @@ def improper_sample_unwhitened(
 
     if vol is None:
         mu = numpyro.sample(
-            f'mu_{name}',
+            f'_mu_{name}',
             numpyro.distributions.ImproperUniform(
                 numpyro.distributions.constraints.real, (), (),
             ),
@@ -231,4 +231,4 @@ def improper_sample_unwhitened(
     else:
         y -= jax.nn.logsumexp(y + jnp.log(vol))
 
-    return numpyro.deterministic(f'y_{name}', y)
+    return numpyro.deterministic(name, y)
